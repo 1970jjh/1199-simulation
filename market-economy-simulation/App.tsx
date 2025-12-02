@@ -11,7 +11,8 @@ import {
   saveGameState,
   subscribeToGameState,
   deleteGameRoom,
-  generateRoomId
+  generateRoomId,
+  getGameState
 } from './utils/firebase';
 
 const GAME_STORAGE_KEY = 'MARKET_SIM_STATE';
@@ -57,7 +58,7 @@ const App: React.FC = () => {
 
   // Helper: 라운드 완료 상태 확인
   const checkRoundComplete = useCallback((state: GameState) => {
-    if (state.roundHistory.length > 0) {
+    if (state.roundHistory && state.roundHistory.length > 0) {
       const lastResult = state.roundHistory[state.roundHistory.length - 1];
       return lastResult.roundNumber === state.currentRound;
     }
@@ -66,8 +67,20 @@ const App: React.FC = () => {
 
   // --- Firebase/Storage Sync Logic ---
 
-  // 1. Load initial state from localStorage
+  // 1. Load initial state from URL or localStorage
   useEffect(() => {
+    // Check URL for room code first
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoomId = urlParams.get('room');
+
+    if (urlRoomId && useFirebase) {
+      // Join room from URL
+      setRoomId(urlRoomId);
+      localStorage.setItem(ROOM_ID_KEY, urlRoomId);
+      return;
+    }
+
+    // Otherwise check localStorage
     const savedRoomId = localStorage.getItem(ROOM_ID_KEY);
     const saved = localStorage.getItem(GAME_STORAGE_KEY);
 
@@ -84,7 +97,7 @@ const App: React.FC = () => {
         console.error("Failed to load game state", e);
       }
     }
-  }, [checkRoundComplete]);
+  }, [checkRoundComplete, useFirebase]);
 
   // 2. Subscribe to Firebase when roomId is set
   useEffect(() => {
@@ -108,9 +121,6 @@ const App: React.FC = () => {
         setTimeout(() => {
           isFromFirebase.current = false;
         }, 100);
-      } else {
-        // Room was deleted
-        handleRestart();
       }
     });
 
@@ -173,10 +183,14 @@ const App: React.FC = () => {
       roundHistory: [],
     };
 
-    // Generate and save room ID
-    const newRoomId = generateRoomId(roomName + '-' + Date.now());
+    // Generate 6-digit room code
+    const newRoomId = generateRoomId();
     setRoomId(newRoomId);
     localStorage.setItem(ROOM_ID_KEY, newRoomId);
+
+    // Update URL with room code
+    const newUrl = `${window.location.pathname}?room=${newRoomId}`;
+    window.history.replaceState({}, '', newUrl);
 
     setGameState(newState);
     setUserRole('ADMIN');
@@ -199,13 +213,33 @@ const App: React.FC = () => {
     handleRestart();
   };
 
+  // 방 코드로 참가
+  const handleJoinByCode = async (code: string): Promise<boolean> => {
+    if (!useFirebase) return false;
+
+    const state = await getGameState(code);
+    if (state && state.phase !== GamePhase.SETUP) {
+      setRoomId(code);
+      localStorage.setItem(ROOM_ID_KEY, code);
+      setGameState(state);
+
+      // Update URL
+      const newUrl = `${window.location.pathname}?room=${code}`;
+      window.history.replaceState({}, '', newUrl);
+
+      return true;
+    }
+    return false;
+  };
+
   const handleUserJoin = (name: string, teamId: number) => {
     // Update team members in state
     setGameState(prev => {
-      const updatedTeams = prev.teams.map(t => {
+      const updatedTeams = (prev.teams || []).map(t => {
         if (t.id === teamId) {
-          if (!t.members.includes(name)) {
-            return { ...t, members: [...t.members, name] };
+          const members = t.members || [];
+          if (!members.includes(name)) {
+            return { ...t, members: [...members, name] };
           }
         }
         return t;
@@ -226,20 +260,20 @@ const App: React.FC = () => {
 
       if (!sub || !profit) return team;
 
-      const newRemaining = [...team.remainingCards];
+      const newRemaining = [...(team.remainingCards || [])];
       const idx1 = newRemaining.indexOf(sub.card1);
       if (idx1 !== -1) newRemaining.splice(idx1, 1);
       const idx2 = newRemaining.indexOf(sub.card2);
       if (idx2 !== -1) newRemaining.splice(idx2, 1);
 
-      const newTotal = team.totalScore + profit.amount;
+      const newTotal = (team.totalScore || 0) + profit.amount;
 
       return {
         ...team,
         totalScore: newTotal,
         remainingCards: newRemaining,
         history: [
-          ...team.history,
+          ...(team.history || []),
           {
             round: gameState.currentRound,
             cardsPlayed: [sub.card1, sub.card2] as [number, number],
@@ -253,7 +287,7 @@ const App: React.FC = () => {
     setGameState(prev => ({
       ...prev,
       teams: updatedTeams,
-      roundHistory: [...prev.roundHistory, result]
+      roundHistory: [...(prev.roundHistory || []), result]
     }));
 
     setViewingResult(result);
@@ -274,6 +308,9 @@ const App: React.FC = () => {
     // Clear storage
     localStorage.removeItem(GAME_STORAGE_KEY);
     localStorage.removeItem(ROOM_ID_KEY);
+
+    // Clear URL params
+    window.history.replaceState({}, '', window.location.pathname);
 
     setRoomId('');
     setGameState({
@@ -300,8 +337,10 @@ const App: React.FC = () => {
           onAdminResume={handleAdminResume}
           onDeleteRoom={handleDeleteRoom}
           onUserJoin={handleUserJoin}
-          existingTeams={gameState.teams.length}
+          onJoinByCode={handleJoinByCode}
+          existingTeams={gameState.teams?.length || 0}
           roomName={gameState.roomName || null}
+          roomCode={roomId}
           toggleTheme={toggleTheme}
           isDarkMode={isDarkMode}
         />
@@ -311,9 +350,9 @@ const App: React.FC = () => {
             <>
               <RoundScreen
                 round={gameState.currentRound}
-                teams={gameState.teams}
+                teams={gameState.teams || []}
                 isRoundComplete={isRoundComplete}
-                roundHistory={gameState.roundHistory}
+                roundHistory={gameState.roundHistory || []}
                 onSubmitRound={handleSubmitRound}
                 onNextRound={handleNextRound}
                 onViewResult={setViewingResult}
@@ -323,7 +362,7 @@ const App: React.FC = () => {
               {viewingResult && (
                 <RoundResultModal
                   result={viewingResult}
-                  teams={gameState.teams}
+                  teams={gameState.teams || []}
                   onClose={() => setViewingResult(null)}
                 />
               )}
@@ -331,7 +370,7 @@ const App: React.FC = () => {
           )}
 
           {gameState.phase === GamePhase.ENDED && (
-            <FinalResults teams={gameState.teams} roundHistory={gameState.roundHistory} onRestart={handleRestart} />
+            <FinalResults teams={gameState.teams || []} roundHistory={gameState.roundHistory || []} onRestart={handleRestart} />
           )}
         </>
       )}
