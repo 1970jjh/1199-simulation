@@ -205,6 +205,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
 
   // --- USER VIEW RENDER ---
   if (userRole === 'USER' && currentUser && activeTeam) {
+      const isAlreadySubmitted = !!submissions[activeTeam.id];
       return (
           <div className="h-screen flex flex-col bg-gray-100 dark:bg-slate-900 overflow-hidden relative">
               {rulesModal}
@@ -213,11 +214,12 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     team={activeTeam}
                     teams={teams}
                     round={round}
-                    onClose={() => {}} 
+                    onClose={() => {}}
                     onSubmit={handleTeamSubmit}
                     onShowRules={() => setShowRulesModal(true)}
                     isUserMode={true}
                     members={activeTeam.members}
+                    isAlreadySubmitted={isAlreadySubmitted}
                  />
               </div>
           </div>
@@ -231,14 +233,15 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
 
       {/* Input Modal for Admin clicking on a team */}
       {activeTeam && userRole === 'ADMIN' && (
-        <TeamInputView 
+        <TeamInputView
           key={activeTeam.id}
           team={activeTeam}
           teams={teams}
-          round={round} 
-          onClose={() => setActiveTeamId(null)} 
-          onSubmit={handleTeamSubmit} 
+          round={round}
+          onClose={() => setActiveTeamId(null)}
+          onSubmit={handleTeamSubmit}
           isUserMode={false}
+          isAlreadySubmitted={!!submissions[activeTeam.id]}
         />
       )}
 
