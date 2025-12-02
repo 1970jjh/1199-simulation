@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Team } from '../types';
 import { INITIAL_CARDS } from '../constants';
 import { CheckCircle, X, AlertCircle, TrendingUp, Lock, Users, BookOpen } from 'lucide-react';
@@ -12,21 +12,23 @@ interface TeamInputViewProps {
   onShowRules?: () => void;
   isUserMode?: boolean;
   members?: string[];
+  isAlreadySubmitted?: boolean; // 이미 제출했는지 여부 (Firebase에서 동기화)
 }
 
-export const TeamInputView: React.FC<TeamInputViewProps> = ({ 
-  team, 
-  teams, 
-  round, 
-  onClose, 
-  onSubmit, 
+export const TeamInputView: React.FC<TeamInputViewProps> = ({
+  team,
+  teams,
+  round,
+  onClose,
+  onSubmit,
   onShowRules,
   isUserMode = false,
-  members = []
+  members = [],
+  isAlreadySubmitted = false
 }) => {
   const cardStates = useMemo(() => {
     const states = new Array(INITIAL_CARDS.length).fill(false);
-    
+
     const remainingCounts: Record<number, number> = {};
     team.remainingCards.forEach(c => {
       remainingCounts[c] = (remainingCounts[c] || 0) + 1;
@@ -35,14 +37,20 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
     return INITIAL_CARDS.map((cardVal) => {
       if (remainingCounts[cardVal] > 0) {
         remainingCounts[cardVal]--;
-        return true; 
+        return true;
       }
-      return false; 
+      return false;
     });
   }, [team.remainingCards]);
 
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(isAlreadySubmitted);
+
+  // 라운드가 바뀌거나 제출 상태가 외부에서 변경되면 상태 초기화
+  useEffect(() => {
+    setSelectedIndices([]);
+    setIsSubmitted(isAlreadySubmitted);
+  }, [round, isAlreadySubmitted]);
   
   const selectedValues = selectedIndices.map(idx => INITIAL_CARDS[idx]);
 
