@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player } from './types';
+import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission } from './types';
 import { TOTAL_ROUNDS, INITIAL_CARDS } from './constants';
 import { calculateRoundResults } from './utils/gameLogic';
 import { LoginScreen } from './components/LoginScreen';
@@ -33,6 +33,7 @@ const App: React.FC = () => {
     currentRound: 1,
     teams: [],
     roundHistory: [],
+    pendingSubmissions: {},
   });
 
   const [viewingResult, setViewingResult] = useState<RoundResult | null>(null);
@@ -251,6 +252,17 @@ const App: React.FC = () => {
     setUserRole('USER');
   };
 
+  // 팀별 카드 제출 (Firebase 동기화)
+  const handleTeamSubmit = (teamId: number, card1: number, card2: number) => {
+    setGameState(prev => ({
+      ...prev,
+      pendingSubmissions: {
+        ...(prev.pendingSubmissions || {}),
+        [teamId]: { card1, card2 }
+      }
+    }));
+  };
+
   const handleSubmitRound = (submissions: CardSubmission[]) => {
     const result = calculateRoundResults(gameState.currentRound, submissions, gameState.teams);
 
@@ -298,9 +310,9 @@ const App: React.FC = () => {
     setViewingResult(null);
     setIsRoundComplete(false);
     if (gameState.currentRound >= TOTAL_ROUNDS) {
-      setGameState(prev => ({ ...prev, phase: GamePhase.ENDED }));
+      setGameState(prev => ({ ...prev, phase: GamePhase.ENDED, pendingSubmissions: {} }));
     } else {
-      setGameState(prev => ({ ...prev, currentRound: prev.currentRound + 1 }));
+      setGameState(prev => ({ ...prev, currentRound: prev.currentRound + 1, pendingSubmissions: {} }));
     }
   };
 
@@ -319,6 +331,7 @@ const App: React.FC = () => {
       currentRound: 1,
       teams: [],
       roundHistory: [],
+      pendingSubmissions: {},
     });
     setViewingResult(null);
     setIsRoundComplete(false);
@@ -353,7 +366,9 @@ const App: React.FC = () => {
                 teams={gameState.teams || []}
                 isRoundComplete={isRoundComplete}
                 roundHistory={gameState.roundHistory || []}
+                pendingSubmissions={gameState.pendingSubmissions || {}}
                 onSubmitRound={handleSubmitRound}
+                onTeamSubmit={handleTeamSubmit}
                 onNextRound={handleNextRound}
                 onViewResult={setViewingResult}
                 userRole={userRole}

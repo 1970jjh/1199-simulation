@@ -55,6 +55,7 @@ const normalizeGameState = (data: any): GameState => {
     currentRound: data.currentRound || 1,
     teams: Array.isArray(data.teams) ? data.teams.map(normalizeTeam) : [],
     roundHistory: Array.isArray(data.roundHistory) ? data.roundHistory : [],
+    pendingSubmissions: data.pendingSubmissions || {},
   };
 };
 
@@ -79,6 +80,7 @@ export const saveGameState = async (roomId: string, state: GameState): Promise<v
       history: team.history.length > 0 ? team.history : [],
     })),
     roundHistory: state.roundHistory.length > 0 ? state.roundHistory : [],
+    pendingSubmissions: state.pendingSubmissions || {},
     updatedAt: Date.now(),
   };
 
