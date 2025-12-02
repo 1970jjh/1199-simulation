@@ -52,12 +52,18 @@ export interface Team {
   }[];
 }
 
+export interface PendingSubmission {
+  card1: number;
+  card2: number;
+}
+
 export interface GameState {
   roomName: string;
   phase: GamePhase;
   currentRound: number;
   teams: Team[];
   roundHistory: RoundResult[];
+  pendingSubmissions?: Record<number, PendingSubmission>; // teamId -> submission
 }
 
 export interface AIAnalysisReport {

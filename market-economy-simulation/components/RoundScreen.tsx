@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Team, CardSubmission, MarketType, RoundResult, Player } from '../types';
+import { Team, CardSubmission, MarketType, RoundResult, Player, PendingSubmission } from '../types';
 import { getMarketName, getMarketDescription, getMarketType, TOTAL_ROUNDS, getDetailedRules, GENERAL_RULES } from '../constants';
 import { TeamInputView } from './TeamInputView';
 import { Smartphone, Check, Lock, Trophy, BookOpen, X, TrendingUp, History, Timer, ArrowRight, Play, Square, Users } from 'lucide-react';
@@ -9,25 +9,30 @@ interface RoundScreenProps {
   teams: Team[];
   isRoundComplete: boolean;
   roundHistory: RoundResult[];
+  pendingSubmissions: Record<number, PendingSubmission>;
   onSubmitRound: (submissions: CardSubmission[]) => void;
+  onTeamSubmit: (teamId: number, card1: number, card2: number) => void;
   onNextRound: () => void;
   onViewResult: (result: RoundResult) => void;
   userRole: 'ADMIN' | 'USER';
   currentUser: Player | null;
 }
 
-export const RoundScreen: React.FC<RoundScreenProps> = ({ 
-  round, 
-  teams, 
+export const RoundScreen: React.FC<RoundScreenProps> = ({
+  round,
+  teams,
   isRoundComplete,
   roundHistory,
-  onSubmitRound, 
+  pendingSubmissions,
+  onSubmitRound,
+  onTeamSubmit,
   onNextRound,
   onViewResult,
   userRole,
   currentUser
 }) => {
-  const [submissions, setSubmissions] = useState<Record<number, { card1: number; card2: number }>>({});
+  // Use synced submissions from Firebase
+  const submissions = pendingSubmissions;
   const [activeTeamId, setActiveTeamId] = useState<number | null>(null);
   const [showRulesModal, setShowRulesModal] = useState(false);
 
@@ -46,10 +51,8 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
     [MarketType.MONOPOLY]: 'from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300',
   };
 
-  // Reset submissions when round changes
-  useEffect(() => {
-    setSubmissions({});
-  }, [round]);
+  // Note: submissions are now managed by App.tsx and synced via Firebase
+  // They are cleared when advancing to the next round
 
   // Audio Logic for Negotiation
   useEffect(() => {
@@ -137,10 +140,8 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
     const teamId = userRole === 'USER' && currentUser ? currentUser.teamId : activeTeamId;
     if (teamId === null) return;
 
-    setSubmissions(prev => ({
-      ...prev,
-      [teamId]: { card1: c1, card2: c2 }
-    }));
+    // Submit to Firebase via parent component
+    onTeamSubmit(teamId, c1, c2);
     setActiveTeamId(null);
   };
 
