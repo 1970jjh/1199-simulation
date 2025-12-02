@@ -20,6 +20,6 @@
     },
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
+  "include": ["./**/*.ts", "./**/*.tsx", "vite-env.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
