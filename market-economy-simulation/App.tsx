@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player } from './types';
 import { TOTAL_ROUNDS, INITIAL_CARDS } from './constants';
 import { calculateRoundResults } from './utils/gameLogic';
@@ -6,15 +6,24 @@ import { LoginScreen } from './components/LoginScreen';
 import { RoundScreen } from './components/RoundScreen';
 import { RoundResultModal } from './components/RoundResultModal';
 import { FinalResults } from './components/FinalResults';
+import {
+  isFirebaseConfigured,
+  saveGameState,
+  subscribeToGameState,
+  deleteGameRoom,
+  generateRoomId
+} from './utils/firebase';
 
 const GAME_STORAGE_KEY = 'MARKET_SIM_STATE';
+const ROOM_ID_KEY = 'MARKET_SIM_ROOM_ID';
 
 const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
-  
+
   // Local User State (Not synced)
   const [currentUser, setCurrentUser] = useState<Player | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [roomId, setRoomId] = useState<string>('');
 
   // Synced Game State
   const [gameState, setGameState] = useState<GameState>({
@@ -24,9 +33,16 @@ const App: React.FC = () => {
     teams: [],
     roundHistory: [],
   });
-  
+
   const [viewingResult, setViewingResult] = useState<RoundResult | null>(null);
   const [isRoundComplete, setIsRoundComplete] = useState<boolean>(false);
+
+  // Ref to track if update is from Firebase (to prevent save loop)
+  const isFromFirebase = useRef(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Firebase 사용 여부
+  const useFirebase = isFirebaseConfigured();
 
   // Theme
   useEffect(() => {
@@ -39,61 +55,102 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  // --- Storage Sync Logic ---
-  
-  // 1. Load initial state
+  // Helper: 라운드 완료 상태 확인
+  const checkRoundComplete = useCallback((state: GameState) => {
+    if (state.roundHistory.length > 0) {
+      const lastResult = state.roundHistory[state.roundHistory.length - 1];
+      return lastResult.roundNumber === state.currentRound;
+    }
+    return false;
+  }, []);
+
+  // --- Firebase/Storage Sync Logic ---
+
+  // 1. Load initial state from localStorage
   useEffect(() => {
+    const savedRoomId = localStorage.getItem(ROOM_ID_KEY);
     const saved = localStorage.getItem(GAME_STORAGE_KEY);
+
+    if (savedRoomId) {
+      setRoomId(savedRoomId);
+    }
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setGameState(parsed);
-        // If we have history, check if round is complete (logic simplified here)
-        // If the current round has a result in history, it is complete.
-        if (parsed.roundHistory.length > 0) {
-            const lastResult = parsed.roundHistory[parsed.roundHistory.length - 1];
-            if (lastResult.roundNumber === parsed.currentRound) {
-                setIsRoundComplete(true);
-            }
-        }
+        setIsRoundComplete(checkRoundComplete(parsed));
       } catch (e) {
         console.error("Failed to load game state", e);
       }
     }
-  }, []);
+  }, [checkRoundComplete]);
 
-  // 2. Save state on change (Only Admin triggers this usually, but joining users update teams)
+  // 2. Subscribe to Firebase when roomId is set
   useEffect(() => {
-    if (gameState.phase !== GamePhase.SETUP) {
-      localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
+    if (!useFirebase || !roomId) return;
+
+    // Unsubscribe previous listener
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
     }
-  }, [gameState]);
 
-  // 3. Listen for changes from other tabs
+    // Subscribe to Firebase changes
+    unsubscribeRef.current = subscribeToGameState(roomId, (newState) => {
+      if (newState) {
+        isFromFirebase.current = true;
+        setGameState(newState);
+        setIsRoundComplete(checkRoundComplete(newState));
+        // Also update localStorage for offline support
+        localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(newState));
+
+        // Reset flag after state update
+        setTimeout(() => {
+          isFromFirebase.current = false;
+        }, 100);
+      } else {
+        // Room was deleted
+        handleRestart();
+      }
+    });
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [roomId, useFirebase, checkRoundComplete]);
+
+  // 3. Save state on change
   useEffect(() => {
+    if (gameState.phase === GamePhase.SETUP) return;
+    if (isFromFirebase.current) return; // Skip if update came from Firebase
+
+    // Save to localStorage
+    localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
+
+    // Save to Firebase if configured
+    if (useFirebase && roomId) {
+      saveGameState(roomId, gameState).catch(console.error);
+    }
+  }, [gameState, roomId, useFirebase]);
+
+  // 4. Listen for localStorage changes from other tabs (fallback)
+  useEffect(() => {
+    if (useFirebase) return; // Skip if using Firebase
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === GAME_STORAGE_KEY && e.newValue) {
         const parsed = JSON.parse(e.newValue);
         setGameState(parsed);
-        // Sync round completion status
-        if (parsed.roundHistory.length > 0) {
-            const lastResult = parsed.roundHistory[parsed.roundHistory.length - 1];
-            if (lastResult.roundNumber === parsed.currentRound) {
-                setIsRoundComplete(true);
-            } else {
-                setIsRoundComplete(false);
-            }
-        } else {
-            setIsRoundComplete(false);
-        }
+        setIsRoundComplete(checkRoundComplete(parsed));
       } else if (e.key === GAME_STORAGE_KEY && !e.newValue) {
-         // Room deleted
-         handleRestart();
+        handleRestart();
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [useFirebase, checkRoundComplete]);
 
 
   // --- Actions ---
@@ -108,40 +165,52 @@ const App: React.FC = () => {
       history: [],
     }));
 
-    const newState = {
+    const newState: GameState = {
       roomName,
       phase: GamePhase.PLAYING,
       currentRound: 1,
       teams: newTeams,
       roundHistory: [],
     };
-    
+
+    // Generate and save room ID
+    const newRoomId = generateRoomId(roomName + '-' + Date.now());
+    setRoomId(newRoomId);
+    localStorage.setItem(ROOM_ID_KEY, newRoomId);
+
     setGameState(newState);
     setUserRole('ADMIN');
+
+    // Save immediately
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(newState));
+    if (useFirebase) {
+      saveGameState(newRoomId, newState).catch(console.error);
+    }
   };
 
   const handleAdminResume = () => {
-      setUserRole('ADMIN');
+    setUserRole('ADMIN');
   };
 
   const handleDeleteRoom = () => {
-      handleRestart(); // Clears local state and storage
+    if (useFirebase && roomId) {
+      deleteGameRoom(roomId).catch(console.error);
+    }
+    handleRestart();
   };
 
   const handleUserJoin = (name: string, teamId: number) => {
     // Update team members in state
     setGameState(prev => {
-        const updatedTeams = prev.teams.map(t => {
-            if (t.id === teamId) {
-                // Prevent duplicates if simple refresh
-                if (!t.members.includes(name)) {
-                    return { ...t, members: [...t.members, name] };
-                }
-            }
-            return t;
-        });
-        return { ...prev, teams: updatedTeams };
+      const updatedTeams = prev.teams.map(t => {
+        if (t.id === teamId) {
+          if (!t.members.includes(name)) {
+            return { ...t, members: [...t.members, name] };
+          }
+        }
+        return t;
+      });
+      return { ...prev, teams: updatedTeams };
     });
 
     setCurrentUser({ name, teamId });
@@ -150,11 +219,11 @@ const App: React.FC = () => {
 
   const handleSubmitRound = (submissions: CardSubmission[]) => {
     const result = calculateRoundResults(gameState.currentRound, submissions, gameState.teams);
-    
+
     const updatedTeams = gameState.teams.map(team => {
       const sub = submissions.find(s => s.teamId === team.id);
       const profit = result.profits.find(p => p.teamId === team.id);
-      
+
       if (!sub || !profit) return team;
 
       const newRemaining = [...team.remainingCards];
@@ -186,7 +255,7 @@ const App: React.FC = () => {
       teams: updatedTeams,
       roundHistory: [...prev.roundHistory, result]
     }));
-    
+
     setViewingResult(result);
     setIsRoundComplete(true);
   };
@@ -202,8 +271,11 @@ const App: React.FC = () => {
   };
 
   const handleRestart = () => {
-    // Clear storage to kill room
+    // Clear storage
     localStorage.removeItem(GAME_STORAGE_KEY);
+    localStorage.removeItem(ROOM_ID_KEY);
+
+    setRoomId('');
     setGameState({
       roomName: '',
       phase: GamePhase.SETUP,
@@ -218,51 +290,50 @@ const App: React.FC = () => {
   };
 
   // Determine viewing state logic
-  // If userRole is set, we show Game. Else Login.
   const showLogin = !userRole;
 
   return (
     <div className="min-h-screen transition-colors duration-300">
       {showLogin ? (
-          <LoginScreen 
-            onAdminStart={handleAdminStart}
-            onAdminResume={handleAdminResume}
-            onDeleteRoom={handleDeleteRoom}
-            onUserJoin={handleUserJoin}
-            existingTeams={gameState.teams.length}
-            roomName={gameState.roomName || null}
-            toggleTheme={toggleTheme}
-            isDarkMode={isDarkMode}
-          />
+        <LoginScreen
+          onAdminStart={handleAdminStart}
+          onAdminResume={handleAdminResume}
+          onDeleteRoom={handleDeleteRoom}
+          onUserJoin={handleUserJoin}
+          existingTeams={gameState.teams.length}
+          roomName={gameState.roomName || null}
+          toggleTheme={toggleTheme}
+          isDarkMode={isDarkMode}
+        />
       ) : (
-          <>
-            {gameState.phase === GamePhase.PLAYING && (
-                <>
-                <RoundScreen 
-                    round={gameState.currentRound} 
-                    teams={gameState.teams} 
-                    isRoundComplete={isRoundComplete}
-                    roundHistory={gameState.roundHistory}
-                    onSubmitRound={handleSubmitRound}
-                    onNextRound={handleNextRound}
-                    onViewResult={setViewingResult}
-                    userRole={userRole}
-                    currentUser={currentUser}
+        <>
+          {gameState.phase === GamePhase.PLAYING && (
+            <>
+              <RoundScreen
+                round={gameState.currentRound}
+                teams={gameState.teams}
+                isRoundComplete={isRoundComplete}
+                roundHistory={gameState.roundHistory}
+                onSubmitRound={handleSubmitRound}
+                onNextRound={handleNextRound}
+                onViewResult={setViewingResult}
+                userRole={userRole}
+                currentUser={currentUser}
+              />
+              {viewingResult && (
+                <RoundResultModal
+                  result={viewingResult}
+                  teams={gameState.teams}
+                  onClose={() => setViewingResult(null)}
                 />
-                {viewingResult && (
-                    <RoundResultModal 
-                    result={viewingResult} 
-                    teams={gameState.teams}
-                    onClose={() => setViewingResult(null)} 
-                    />
-                )}
-                </>
-            )}
+              )}
+            </>
+          )}
 
-            {gameState.phase === GamePhase.ENDED && (
-                <FinalResults teams={gameState.teams} onRestart={handleRestart} />
-            )}
-          </>
+          {gameState.phase === GamePhase.ENDED && (
+            <FinalResults teams={gameState.teams} roundHistory={gameState.roundHistory} onRestart={handleRestart} />
+          )}
+        </>
       )}
     </div>
   );
