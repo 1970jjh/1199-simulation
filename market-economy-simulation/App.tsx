@@ -260,7 +260,7 @@ const App: React.FC = () => {
             )}
 
             {gameState.phase === GamePhase.ENDED && (
-                <FinalResults teams={gameState.teams} onRestart={handleRestart} />
+                <FinalResults teams={gameState.teams} roundHistory={gameState.roundHistory} onRestart={handleRestart} />
             )}
           </>
       )}
