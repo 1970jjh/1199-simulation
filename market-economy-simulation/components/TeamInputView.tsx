@@ -237,21 +237,49 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
                      <h3 className="font-bold font-mono text-gray-700 dark:text-gray-300">LIVE RANKINGS (High Score)</h3>
                  </div>
                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                    {sortedTeams.map((t, i) => (
-                        <div key={t.id} className={`p-4 flex justify-between items-center border-b border-gray-100 dark:border-slate-700/50 last:border-0 ${t.id === team.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
-                            <div className="flex items-center gap-4">
-                                <span className={`font-mono font-bold w-8 text-lg ${i < 3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400'}`}>#{i+1}</span>
-                                <div className="flex flex-col">
-                                    <span className={`font-semibold text-lg ${t.id === team.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                        {t.name} {t.id === team.id && <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded ml-2 align-middle">ME</span>}
-                                    </span>
-                                </div>
-                            </div>
-                            <span className={`font-mono font-bold text-lg ${t.totalScore >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
-                                {t.totalScore}억
-                            </span>
-                        </div>
-                    ))}
+                    {sortedTeams.map((t, i) => {
+                        // Calculate remaining cards count by value
+                        const cardCounts: Record<number, number> = {};
+                        (t.remainingCards || []).forEach(c => {
+                          cardCounts[c] = (cardCounts[c] || 0) + 1;
+                        });
+                        const totalCards = t.remainingCards?.length || 0;
+
+                        return (
+                          <div key={t.id} className={`p-4 border-b border-gray-100 dark:border-slate-700/50 last:border-0 ${t.id === team.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                              <div className="flex justify-between items-center mb-2">
+                                  <div className="flex items-center gap-4">
+                                      <span className={`font-mono font-bold w-8 text-lg ${i < 3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400'}`}>#{i+1}</span>
+                                      <div className="flex flex-col">
+                                          <span className={`font-semibold text-lg ${t.id === team.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                                              {t.name} {t.id === team.id && <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 rounded ml-2 align-middle">ME</span>}
+                                          </span>
+                                      </div>
+                                  </div>
+                                  <span className={`font-mono font-bold text-lg ${t.totalScore >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
+                                      {t.totalScore}억
+                                  </span>
+                              </div>
+                              {/* Remaining cards display */}
+                              <div className="ml-12 flex flex-wrap gap-1 items-center">
+                                  <span className="text-xs text-gray-400 mr-1">Cards({totalCards}):</span>
+                                  {[1,2,3,4,5,6,7,8,9].map(num => {
+                                    const count = cardCounts[num] || 0;
+                                    if (count === 0) return null;
+                                    return (
+                                      <span
+                                        key={num}
+                                        className="inline-flex items-center justify-center px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 rounded text-xs font-mono"
+                                      >
+                                        <span className="font-bold text-gray-700 dark:text-gray-300">{num}</span>
+                                        {count > 1 && <span className="text-gray-400 ml-0.5">×{count}</span>}
+                                      </span>
+                                    );
+                                  })}
+                              </div>
+                          </div>
+                        );
+                    })}
                  </div>
             </div>
         </div>

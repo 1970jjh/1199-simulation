@@ -57,6 +57,16 @@ export interface PendingSubmission {
   card2: number;
 }
 
+export interface TimerState {
+  isRunning: boolean;
+  endTime: number | null; // timestamp when timer ends
+  duration: number; // total duration in seconds
+}
+
+export interface RevealedCards {
+  [teamId: number]: boolean; // track which team's cards have been revealed
+}
+
 export interface GameState {
   roomName: string;
   phase: GamePhase;
@@ -64,6 +74,8 @@ export interface GameState {
   teams: Team[];
   roundHistory: RoundResult[];
   pendingSubmissions?: Record<number, PendingSubmission>; // teamId -> submission
+  timer?: TimerState; // shared timer state
+  revealedCards?: RevealedCards; // track revealed cards for current round
 }
 
 export interface AIAnalysisReport {

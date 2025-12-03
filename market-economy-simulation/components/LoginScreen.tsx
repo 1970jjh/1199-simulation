@@ -135,8 +135,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* Header */}
         <div className="p-8 pb-4 text-center">
-            <h1 className="text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 font-mono tracking-tighter">
-              MARKET SIM
+            <h1 className="text-2xl md:text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 font-mono tracking-tighter">
+              Competition Market
             </h1>
             {existingTeams > 0 && roomName && (
               <div className="space-y-2 mt-2">
