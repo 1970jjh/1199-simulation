@@ -182,6 +182,9 @@ const App: React.FC = () => {
       currentRound: 1,
       teams: newTeams,
       roundHistory: [],
+      pendingSubmissions: {},
+      revealedCards: {},
+      timer: undefined,
     };
 
     // Generate 6-digit room code
