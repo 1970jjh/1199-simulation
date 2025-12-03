@@ -44,12 +44,14 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
   }, [team.remainingCards]);
 
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [isSubmitted, setIsSubmitted] = useState(isAlreadySubmitted);
+  // 명시적으로 boolean 타입으로 초기화 (undefined나 다른 값 방지)
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(isAlreadySubmitted === true);
 
   // 라운드가 바뀌거나 제출 상태가 외부에서 변경되면 상태 초기화
   useEffect(() => {
     setSelectedIndices([]);
-    setIsSubmitted(isAlreadySubmitted);
+    // 명시적으로 boolean 체크
+    setIsSubmitted(isAlreadySubmitted === true);
   }, [round, isAlreadySubmitted]);
   
   const selectedValues = selectedIndices.map(idx => INITIAL_CARDS[idx]);
