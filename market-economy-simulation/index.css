@@ -80,3 +80,49 @@ body {
   background: #9ca3af;
   border-radius: 2px;
 }
+
+/* Card flip animation */
+.card-back {
+  animation: cardFlipIn 0.3s ease-out;
+}
+
+.card-front {
+  animation: cardReveal 0.5s ease-out;
+}
+
+@keyframes cardFlipIn {
+  from {
+    opacity: 0;
+    transform: rotateY(90deg) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(0) scale(1);
+  }
+}
+
+@keyframes cardReveal {
+  0% {
+    transform: rotateY(0);
+  }
+  50% {
+    transform: rotateY(90deg) scale(1.1);
+  }
+  100% {
+    transform: rotateY(0) scale(1);
+  }
+}
+
+/* Light mode scrollbar */
+.light ::-webkit-scrollbar-track,
+:root:not(.dark) ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.light ::-webkit-scrollbar-thumb,
+:root:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+}
+.light ::-webkit-scrollbar-thumb:hover,
+:root:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

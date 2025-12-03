@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission } from './types';
+import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission, TimerState, RevealedCards } from './types';
 import { TOTAL_ROUNDS, INITIAL_CARDS } from './constants';
 import { calculateRoundResults } from './utils/gameLogic';
 import { LoginScreen } from './components/LoginScreen';
@@ -263,6 +263,49 @@ const App: React.FC = () => {
     }));
   };
 
+  // Timer control functions
+  const handleTimerStart = (durationMinutes: number) => {
+    const durationSeconds = durationMinutes * 60;
+    const endTime = Date.now() + durationSeconds * 1000;
+    setGameState(prev => ({
+      ...prev,
+      timer: {
+        isRunning: true,
+        endTime,
+        duration: durationSeconds
+      }
+    }));
+  };
+
+  const handleTimerStop = () => {
+    setGameState(prev => ({
+      ...prev,
+      timer: {
+        isRunning: false,
+        endTime: null,
+        duration: 0
+      }
+    }));
+  };
+
+  // Card reveal functions
+  const handleRevealCard = (teamId: number) => {
+    setGameState(prev => ({
+      ...prev,
+      revealedCards: {
+        ...(prev.revealedCards || {}),
+        [teamId]: true
+      }
+    }));
+  };
+
+  const resetRevealedCards = () => {
+    setGameState(prev => ({
+      ...prev,
+      revealedCards: {}
+    }));
+  };
+
   const handleSubmitRound = (submissions: CardSubmission[]) => {
     const result = calculateRoundResults(gameState.currentRound, submissions, gameState.teams);
 
@@ -310,9 +353,9 @@ const App: React.FC = () => {
     setViewingResult(null);
     setIsRoundComplete(false);
     if (gameState.currentRound >= TOTAL_ROUNDS) {
-      setGameState(prev => ({ ...prev, phase: GamePhase.ENDED, pendingSubmissions: {} }));
+      setGameState(prev => ({ ...prev, phase: GamePhase.ENDED, pendingSubmissions: {}, revealedCards: {} }));
     } else {
-      setGameState(prev => ({ ...prev, currentRound: prev.currentRound + 1, pendingSubmissions: {} }));
+      setGameState(prev => ({ ...prev, currentRound: prev.currentRound + 1, pendingSubmissions: {}, revealedCards: {} }));
     }
   };
 
@@ -373,6 +416,13 @@ const App: React.FC = () => {
                 onViewResult={setViewingResult}
                 userRole={userRole}
                 currentUser={currentUser}
+                toggleTheme={toggleTheme}
+                isDarkMode={isDarkMode}
+                timer={gameState.timer || null}
+                onTimerStart={handleTimerStart}
+                onTimerStop={handleTimerStop}
+                revealedCards={gameState.revealedCards || {}}
+                onRevealCard={handleRevealCard}
               />
               {viewingResult && (
                 <RoundResultModal
