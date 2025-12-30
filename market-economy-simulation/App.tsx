@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission, TimerState, RevealedCards } from './types';
+import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission, TimerState, RevealedCards, GameRoomSummary } from './types';
 import { TOTAL_ROUNDS, INITIAL_CARDS } from './constants';
 import { calculateRoundResults } from './utils/gameLogic';
 import { LoginScreen } from './components/LoginScreen';
@@ -12,7 +12,8 @@ import {
   subscribeToGameState,
   deleteGameRoom,
   generateRoomId,
-  getGameState
+  getGameState,
+  subscribeToGameRooms
 } from './utils/firebase';
 
 const GAME_STORAGE_KEY = 'MARKET_SIM_STATE';
@@ -25,6 +26,9 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Player | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [roomId, setRoomId] = useState<string>('');
+
+  // 다중 게임룸 목록 (관리자용)
+  const [gameRooms, setGameRooms] = useState<GameRoomSummary[]>([]);
 
   // Synced Game State
   const [gameState, setGameState] = useState<GameState>({
@@ -42,6 +46,7 @@ const App: React.FC = () => {
   // Ref to track if update is from Firebase (to prevent save loop)
   const isFromFirebase = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
 
   // Firebase 사용 여부
   const useFirebase = isFirebaseConfigured();
@@ -56,6 +61,21 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  // 게임룸 목록 구독 (관리자용)
+  useEffect(() => {
+    if (!useFirebase) return;
+
+    unsubscribeRoomsRef.current = subscribeToGameRooms((rooms) => {
+      setGameRooms(rooms);
+    });
+
+    return () => {
+      if (unsubscribeRoomsRef.current) {
+        unsubscribeRoomsRef.current();
+      }
+    };
+  }, [useFirebase]);
 
   // Helper: 라운드 완료 상태 확인
   const checkRoundComplete = useCallback((state: GameState) => {
@@ -202,7 +222,7 @@ const App: React.FC = () => {
     // Save immediately
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(newState));
     if (useFirebase) {
-      saveGameState(newRoomId, newState).catch(console.error);
+      saveGameState(newRoomId, newState, true).catch(console.error); // isNew = true
     }
   };
 
@@ -210,11 +230,33 @@ const App: React.FC = () => {
     setUserRole('ADMIN');
   };
 
-  const handleDeleteRoom = () => {
-    if (useFirebase && roomId) {
-      deleteGameRoom(roomId).catch(console.error);
+  // 특정 게임룸 삭제 (관리자용)
+  const handleDeleteRoom = (targetRoomId?: string) => {
+    const roomToDelete = targetRoomId || roomId;
+    if (useFirebase && roomToDelete) {
+      deleteGameRoom(roomToDelete).catch(console.error);
     }
-    handleRestart();
+    // 현재 선택된 방을 삭제한 경우에만 초기화
+    if (!targetRoomId || targetRoomId === roomId) {
+      handleRestart();
+    }
+  };
+
+  // 게임룸 선택 및 진입 (관리자용)
+  const handleSelectRoom = async (selectedRoomId: string) => {
+    if (!useFirebase) return;
+
+    const state = await getGameState(selectedRoomId);
+    if (state) {
+      setRoomId(selectedRoomId);
+      localStorage.setItem(ROOM_ID_KEY, selectedRoomId);
+      setGameState(state);
+      setUserRole('ADMIN');
+
+      // Update URL with room code
+      const newUrl = `${window.location.pathname}?room=${selectedRoomId}`;
+      window.history.replaceState({}, '', newUrl);
+    }
   };
 
   // 방 코드로 참가
@@ -395,11 +437,13 @@ const App: React.FC = () => {
           onAdminStart={handleAdminStart}
           onAdminResume={handleAdminResume}
           onDeleteRoom={handleDeleteRoom}
+          onSelectRoom={handleSelectRoom}
           onUserJoin={handleUserJoin}
           onJoinByCode={handleJoinByCode}
           existingTeams={gameState.teams?.length || 0}
           roomName={gameState.roomName || null}
           roomCode={roomId}
+          gameRooms={gameRooms}
           toggleTheme={toggleTheme}
           isDarkMode={isDarkMode}
         />

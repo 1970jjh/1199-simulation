@@ -91,3 +91,14 @@ export interface AIAnalysisReport {
   mvpTeam: string;
   conclusion: string;
 }
+
+// 게임룸 요약 정보 (목록 표시용)
+export interface GameRoomSummary {
+  roomId: string;
+  roomName: string;
+  phase: GamePhase;
+  currentRound: number;
+  teamCount: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
