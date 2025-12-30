@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, onValue, remove, get, Database } from 'firebase/database';
-import { GameState, GamePhase, Team } from '../types';
+import { GameState, GamePhase, Team, GameRoomSummary } from '../types';
 import { INITIAL_CARDS } from '../constants';
 
 // Firebase 설정 - Vercel 환경변수로 설정
@@ -62,14 +62,15 @@ const normalizeGameState = (data: any): GameState => {
 };
 
 // 게임 상태 저장
-export const saveGameState = async (roomId: string, state: GameState): Promise<void> => {
+export const saveGameState = async (roomId: string, state: GameState, isNew: boolean = false): Promise<void> => {
   const db = initializeFirebase();
   if (!db) return;
 
   const gameRef = ref(db, `games/${roomId}`);
 
   // 빈 배열도 저장되도록 명시적으로 설정
-  const dataToSave = {
+  const now = Date.now();
+  const dataToSave: Record<string, any> = {
     roomName: state.roomName,
     phase: state.phase,
     currentRound: state.currentRound,
@@ -85,8 +86,13 @@ export const saveGameState = async (roomId: string, state: GameState): Promise<v
     pendingSubmissions: state.pendingSubmissions || {},
     timer: state.timer || null,
     revealedCards: state.revealedCards || {},
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
+
+  // 새 게임룸 생성 시 createdAt 추가
+  if (isNew) {
+    dataToSave.createdAt = now;
+  }
 
   await set(gameRef, dataToSave);
 };
@@ -158,4 +164,64 @@ export const deleteGameRoom = async (roomId: string): Promise<void> => {
 // Room ID 생성 (6자리 숫자)
 export const generateRoomId = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// 모든 게임룸 목록 조회
+export const getAllGameRooms = async (): Promise<GameRoomSummary[]> => {
+  const db = initializeFirebase();
+  if (!db) return [];
+
+  const gamesRef = ref(db, 'games');
+  const snapshot = await get(gamesRef);
+  const data = snapshot.val();
+
+  if (!data) return [];
+
+  const rooms: GameRoomSummary[] = Object.entries(data).map(([roomId, roomData]: [string, any]) => ({
+    roomId,
+    roomName: roomData.roomName || 'Unnamed Room',
+    phase: roomData.phase || GamePhase.SETUP,
+    currentRound: roomData.currentRound || 1,
+    teamCount: Array.isArray(roomData.teams) ? roomData.teams.length : 0,
+    createdAt: roomData.createdAt,
+    updatedAt: roomData.updatedAt,
+  }));
+
+  // 최신순으로 정렬
+  return rooms.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+};
+
+// 모든 게임룸 실시간 구독
+export const subscribeToGameRooms = (
+  callback: (rooms: GameRoomSummary[]) => void
+): (() => void) => {
+  const db = initializeFirebase();
+  if (!db) {
+    return () => {};
+  }
+
+  const gamesRef = ref(db, 'games');
+  const unsubscribe = onValue(gamesRef, (snapshot) => {
+    const data = snapshot.val();
+
+    if (!data) {
+      callback([]);
+      return;
+    }
+
+    const rooms: GameRoomSummary[] = Object.entries(data).map(([roomId, roomData]: [string, any]) => ({
+      roomId,
+      roomName: roomData.roomName || 'Unnamed Room',
+      phase: roomData.phase || GamePhase.SETUP,
+      currentRound: roomData.currentRound || 1,
+      teamCount: Array.isArray(roomData.teams) ? roomData.teams.length : 0,
+      createdAt: roomData.createdAt,
+      updatedAt: roomData.updatedAt,
+    }));
+
+    // 최신순으로 정렬
+    callback(rooms.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+  });
+
+  return unsubscribe;
 };

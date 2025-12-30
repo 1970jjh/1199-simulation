@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { Users, Shield, Smartphone, ArrowRight, Play, Sun, Moon, Trash2, LogIn, Hash, Copy, Check } from 'lucide-react';
+import { Users, Shield, Smartphone, ArrowRight, Play, Sun, Moon, Trash2, LogIn, Hash, Copy, Check, Plus, ChevronRight } from 'lucide-react';
+import { GameRoomSummary, GamePhase } from '../types';
 
 interface LoginScreenProps {
   onAdminStart: (roomName: string, teamCount: number) => void;
   onAdminResume: () => void;
-  onDeleteRoom: () => void;
+  onDeleteRoom: (roomId?: string) => void;
+  onSelectRoom: (roomId: string) => void;
   onUserJoin: (name: string, teamId: number) => void;
   onJoinByCode: (code: string) => Promise<boolean>;
   existingTeams: number; // If 0, room doesn't exist
   roomName: string | null;
   roomCode: string;
+  gameRooms: GameRoomSummary[];
   toggleTheme: () => void;
   isDarkMode: boolean;
 }
@@ -18,15 +21,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onAdminStart,
   onAdminResume,
   onDeleteRoom,
+  onSelectRoom,
   onUserJoin,
   onJoinByCode,
   existingTeams,
   roomName,
   roomCode,
+  gameRooms,
   toggleTheme,
   isDarkMode
 }) => {
   const [mode, setMode] = useState<'USER' | 'ADMIN'>('USER');
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // User Inputs
   const [userName, setUserName] = useState('');
@@ -47,29 +53,56 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return;
     }
 
-    // If room exists, this button acts as RESUME
-    if (existingTeams > 0) {
-        onAdminResume();
-    } else {
-        // Create new room
-        if (!newRoomName) {
-            setError('Enter Room Name');
-            return;
-        }
-        onAdminStart(newRoomName, teamCount);
+    // Create new room
+    if (!newRoomName) {
+        setError('Enter Room Name');
+        return;
     }
+    onAdminStart(newRoomName, teamCount);
+    setNewRoomName('');
+    setShowCreateForm(false);
   };
 
-  const handleAdminDelete = () => {
+  const handleAdminDelete = (targetRoomId?: string) => {
       if (adminPassword !== '6749467') {
         setError('Invalid Password');
         return;
       }
-      if (window.confirm("Are you sure you want to delete this room? All data will be lost.")) {
-          onDeleteRoom();
-          setAdminPassword('');
+      const roomToDelete = targetRoomId || roomCode;
+      const roomInfo = gameRooms.find(r => r.roomId === roomToDelete);
+      const roomDisplayName = roomInfo ? roomInfo.roomName : roomToDelete;
+
+      if (window.confirm(`Are you sure you want to delete "${roomDisplayName}"? All data will be lost.`)) {
+          onDeleteRoom(targetRoomId);
+          if (!targetRoomId || targetRoomId === roomCode) {
+            setAdminPassword('');
+          }
           setError('');
       }
+  };
+
+  const handleEnterRoom = (targetRoomId: string) => {
+    if (adminPassword !== '6749467') {
+      setError('Invalid Password');
+      return;
+    }
+    onSelectRoom(targetRoomId);
+  };
+
+  const getPhaseLabel = (phase: GamePhase) => {
+    switch (phase) {
+      case GamePhase.PLAYING: return 'Playing';
+      case GamePhase.ENDED: return 'Ended';
+      default: return 'Setup';
+    }
+  };
+
+  const getPhaseColor = (phase: GamePhase) => {
+    switch (phase) {
+      case GamePhase.PLAYING: return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800';
+      case GamePhase.ENDED: return 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800';
+      default: return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800';
+    }
   };
 
   const handleUserSubmit = () => {
@@ -254,70 +287,80 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </>
             ) : (
                 <>
-                    {existingTeams > 0 ? (
-                        /* RESUME / DELETE MODE */
-                        <div className="space-y-4">
-                            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800 text-center">
-                                <p className="text-yellow-800 dark:text-yellow-200 font-bold text-sm">Room is currently active!</p>
-                                <p className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">Enter password to resume or delete.</p>
-                            </div>
+                    {/* Admin Password - Always Required */}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
+                        <input
+                            type="password"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            placeholder="Enter password"
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                        />
+                    </div>
 
-                            {/* Share buttons */}
-                            {roomCode && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={handleCopyCode}
-                                  className="flex-1 py-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 text-sm"
-                                >
-                                  {copied ? <Check size={16} /> : <Copy size={16} />} Copy Code
-                                </button>
-                                <button
-                                  onClick={handleCopyLink}
-                                  className="flex-1 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition flex items-center justify-center gap-2 text-sm"
-                                >
-                                  {copied ? <Check size={16} /> : <Copy size={16} />} Copy Link
-                                </button>
-                              </div>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
-                                <input
-                                    type="password"
-                                    value={adminPassword}
-                                    onChange={(e) => setAdminPassword(e.target.value)}
-                                    placeholder="Enter password"
-                                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
-                                />
+                    {/* Game Rooms List */}
+                    {gameRooms.length > 0 && !showCreateForm && (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Active Game Rooms ({gameRooms.length})</label>
                             </div>
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    onClick={handleAdminDelete}
-                                    className="flex-1 py-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <Trash2 size={18} /> DELETE
-                                </button>
-                                <button
-                                    onClick={handleAdminSubmit}
-                                    className="flex-[2] py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
-                                >
-                                    RESUME <LogIn size={18} />
-                                </button>
+                            <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                {gameRooms.map((room) => (
+                                    <div
+                                        key={room.roomId}
+                                        className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
+                                                        {getPhaseLabel(room.phase)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 ml-2">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    R{room.currentRound} | {room.teamCount} teams
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleAdminDelete(room.roomId)}
+                                                className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
+                                            >
+                                                <Trash2 size={14} /> Delete
+                                            </button>
+                                            <button
+                                                onClick={() => handleEnterRoom(room.roomId)}
+                                                className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
+                                            >
+                                                Enter <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    ) : (
-                        /* CREATE MODE */
-                        <>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
-                                <input
-                                    type="password"
-                                    value={adminPassword}
-                                    onChange={(e) => setAdminPassword(e.target.value)}
-                                    placeholder="Enter password"
-                                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
-                                />
-                            </div>
+                    )}
+
+                    {/* Create New Room Form */}
+                    {(showCreateForm || gameRooms.length === 0) && (
+                        <div className="space-y-4">
+                            {gameRooms.length > 0 && (
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Create New Room</label>
+                                    <button
+                                        onClick={() => setShowCreateForm(false)}
+                                        className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                    >
+                                        ← Back to list
+                                    </button>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
                                 <input
@@ -349,7 +392,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                             >
                                 CREATE ROOM <Play size={20} fill="currentColor" />
                             </button>
-                        </>
+                        </div>
+                    )}
+
+                    {/* Add New Room Button */}
+                    {gameRooms.length > 0 && !showCreateForm && (
+                        <button
+                            onClick={() => setShowCreateForm(true)}
+                            className="w-full py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600"
+                        >
+                            <Plus size={18} /> Add New Room
+                        </button>
                     )}
                 </>
             )}
