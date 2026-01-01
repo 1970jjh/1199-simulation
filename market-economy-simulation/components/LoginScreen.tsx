@@ -4,6 +4,7 @@ import { GameRoomSummary, GamePhase } from '../types';
 
 interface LoginScreenProps {
   onAdminStart: (roomName: string, teamCount: number) => void;
+  onCreateRoom: (roomName: string, teamCount: number) => Promise<boolean>;
   onAdminResume: () => void;
   onDeleteRoom: (roomId?: string) => void;
   onSelectRoom: (roomId: string) => void;
@@ -19,6 +20,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onAdminStart,
+  onCreateRoom,
   onAdminResume,
   onDeleteRoom,
   onSelectRoom,
@@ -33,12 +35,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 }) => {
   const [mode, setMode] = useState<'USER' | 'ADMIN'>('USER');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   // User Inputs
   const [userName, setUserName] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<number>(1);
   const [joinCode, setJoinCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [selectedUserRoom, setSelectedUserRoom] = useState<GameRoomSummary | null>(null);
 
   // Admin Inputs
   const [adminPassword, setAdminPassword] = useState('');
@@ -46,8 +50,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [teamCount, setTeamCount] = useState(3);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const handleAdminSubmit = () => {
+  const handleAdminLogin = () => {
+    if (adminPassword !== '6749467') {
+      setError('Invalid Password');
+      return;
+    }
+    setError('');
+    setIsAdminLoggedIn(true);
+  };
+
+  const handleAdminSubmit = async () => {
     if (adminPassword !== '6749467') {
       setError('Invalid Password');
       return;
@@ -58,9 +72,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         setError('Enter Room Name');
         return;
     }
-    onAdminStart(newRoomName, teamCount);
-    setNewRoomName('');
-    setShowCreateForm(false);
+
+    // Create room and wait for Firebase save
+    setIsCreating(true);
+    setError('');
+
+    try {
+      const success = await onCreateRoom(newRoomName, teamCount);
+      if (success) {
+        setNewRoomName('');
+        setShowCreateForm(false);
+        // Room will appear in the list via Firebase subscription
+      } else {
+        setError('방 생성에 실패했습니다. 다시 시도해주세요.');
+      }
+    } catch (e) {
+      setError('방 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleAdminDelete = (targetRoomId?: string) => {
@@ -105,13 +135,37 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  const handleUserSubmit = () => {
+  const handleUserSubmit = async () => {
     if (!userName) {
       setError('Enter your name');
       return;
     }
-    // If room exists, join.
-    onUserJoin(userName, selectedTeam);
+    if (!selectedUserRoom) {
+      setError('Select a room first');
+      return;
+    }
+
+    // First select the room, then join
+    setIsJoining(true);
+    try {
+      const success = await onJoinByCode(selectedUserRoom.roomId);
+      if (success) {
+        // Room is now loaded, join the team
+        onUserJoin(userName, selectedTeam);
+      } else {
+        setError('Failed to join room');
+      }
+    } catch (e) {
+      setError('Failed to join room');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleSelectUserRoom = (room: GameRoomSummary) => {
+    setSelectedUserRoom(room);
+    setSelectedTeam(1); // Reset team selection
+    setError('');
   };
 
   const handleJoinByCode = async () => {
@@ -171,28 +225,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <h1 className="text-2xl md:text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 font-mono tracking-tighter">
               Competition Market
             </h1>
-            {existingTeams > 0 && roomName && (
-              <div className="space-y-2 mt-2">
-                <div className="inline-block px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold border border-green-200 dark:border-green-800 animate-pulse">
-                    Active Room: {roomName}
-                </div>
-                {roomCode && (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="px-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center gap-2">
-                      <Hash size={16} className="text-gray-400" />
-                      <span className="font-mono font-bold text-lg tracking-widest text-gray-800 dark:text-white">{roomCode}</span>
-                    </div>
-                    <button
-                      onClick={handleCopyCode}
-                      className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition"
-                      title="Copy room code"
-                    >
-                      {copied ? <Check size={18} /> : <Copy size={18} />}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <p className="text-sm text-gray-500 dark:text-gray-400">Market Economy Simulation Game</p>
         </div>
 
         {/* Tabs */}
@@ -215,16 +248,58 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         <div className="p-8 pt-6 space-y-5">
             {mode === 'USER' ? (
                 <>
-                    {existingTeams === 0 ? (
-                         <div className="space-y-5">
-                            <div className="text-center py-4 text-gray-500">
-                                <p className="font-bold">No active game found.</p>
-                                <p className="text-xs mt-2">Enter room code to join a game.</p>
-                            </div>
+                    {!selectedUserRoom ? (
+                        // Step 1: Show room list for user to select
+                        <div className="space-y-4">
+                            {gameRooms.length > 0 ? (
+                                <>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">
+                                        Select a Game Room ({gameRooms.filter(r => r.phase === GamePhase.PLAYING).length} active)
+                                    </label>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                        {gameRooms.filter(r => r.phase === GamePhase.PLAYING).map((room) => (
+                                            <button
+                                                key={room.roomId}
+                                                onClick={() => handleSelectUserRoom(room)}
+                                                className="w-full bg-gray-50 dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
+                                                                Round {room.currentRound}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 ml-2">
+                                                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                                            {room.teamCount} Teams
+                                                        </span>
+                                                        <ChevronRight size={20} className="text-gray-400" />
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {gameRooms.filter(r => r.phase === GamePhase.PLAYING).length === 0 && (
+                                        <div className="text-center py-4 text-gray-500">
+                                            <p className="font-bold">No active games available.</p>
+                                            <p className="text-xs mt-2">Wait for admin to create a game.</p>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    <p className="font-bold">No games available.</p>
+                                    <p className="text-xs mt-2">Wait for admin to create a game room.</p>
+                                </div>
+                            )}
 
-                            {/* Room Code Input */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Code (6 digits)</label>
+                            {/* Optional: Room Code Input for direct join */}
+                            <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase">Or enter room code directly</label>
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
@@ -232,20 +307,52 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                         onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                         placeholder="123456"
                                         maxLength={6}
-                                        className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono text-xl tracking-widest text-center"
+                                        className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono text-lg tracking-widest text-center"
                                     />
                                     <button
-                                        onClick={handleJoinByCode}
+                                        onClick={async () => {
+                                            if (joinCode.length === 6) {
+                                                const room = gameRooms.find(r => r.roomId === joinCode);
+                                                if (room) {
+                                                    handleSelectUserRoom(room);
+                                                } else {
+                                                    // Try to fetch from Firebase
+                                                    setIsJoining(true);
+                                                    const success = await onJoinByCode(joinCode);
+                                                    setIsJoining(false);
+                                                    if (!success) {
+                                                        setError('Room not found');
+                                                    }
+                                                }
+                                            }
+                                        }}
                                         disabled={isJoining || joinCode.length !== 6}
-                                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isJoining ? '...' : <><LogIn size={20} /></>}
+                                        {isJoining ? '...' : <ArrowRight size={20} />}
                                     </button>
                                 </div>
                             </div>
-                         </div>
+                        </div>
                     ) : (
+                        // Step 2: Selected room - enter name and team
                         <>
+                            {/* Selected Room Info */}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="font-bold text-blue-800 dark:text-blue-300">{selectedUserRoom.roomName}</h3>
+                                        <p className="text-xs text-blue-600 dark:text-blue-400 font-mono">#{selectedUserRoom.roomId} • Round {selectedUserRoom.currentRound}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedUserRoom(null)}
+                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        Change Room
+                                    </button>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Your Name</label>
                                 <input
@@ -259,7 +366,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Select Team</label>
                                 <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                    {Array.from({ length: existingTeams }, (_, i) => i + 1).map(num => (
+                                    {Array.from({ length: selectedUserRoom.teamCount }, (_, i) => i + 1).map(num => (
                                         <button
                                             key={num}
                                             onClick={() => setSelectedTeam(num)}
@@ -278,131 +385,167 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                             </div>
                             <button
                                 onClick={handleUserSubmit}
-                                className="w-full py-4 mt-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                                disabled={isJoining}
+                                className="w-full py-4 mt-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                JOIN GAME <ArrowRight size={20} />
+                                {isJoining ? 'Joining...' : <>JOIN GAME <ArrowRight size={20} /></>}
                             </button>
                         </>
                     )}
                 </>
             ) : (
                 <>
-                    {/* Admin Password - Always Required */}
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
-                        <input
-                            type="password"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            placeholder="Enter password"
-                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
-                        />
-                    </div>
-
-                    {/* Game Rooms List */}
-                    {gameRooms.length > 0 && !showCreateForm && (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Active Game Rooms ({gameRooms.length})</label>
-                            </div>
-                            <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                {gameRooms.map((room) => (
-                                    <div
-                                        key={room.roomId}
-                                        className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
-                                                        {getPhaseLabel(room.phase)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1 ml-2">
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    R{room.currentRound} | {room.teamCount} teams
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleAdminDelete(room.roomId)}
-                                                className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
-                                            >
-                                                <Trash2 size={14} /> Delete
-                                            </button>
-                                            <button
-                                                onClick={() => handleEnterRoom(room.roomId)}
-                                                className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
-                                            >
-                                                Enter <ChevronRight size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Create New Room Form */}
-                    {(showCreateForm || gameRooms.length === 0) && (
+                    {/* Admin Login Form - Show first */}
+                    {!isAdminLoggedIn ? (
                         <div className="space-y-4">
-                            {gameRooms.length > 0 && (
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Create New Room</label>
-                                    <button
-                                        onClick={() => setShowCreateForm(false)}
-                                        className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                                    >
-                                        ← Back to list
-                                    </button>
-                                </div>
-                            )}
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
                                 <input
-                                    type="text"
-                                    value={newRoomName}
-                                    onChange={(e) => setNewRoomName(e.target.value)}
-                                    placeholder="e.g. Class A Economy"
+                                    type="password"
+                                    value={adminPassword}
+                                    onChange={(e) => setAdminPassword(e.target.value)}
+                                    placeholder="Enter password"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
                                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Number of Teams: <span className="text-purple-500">{teamCount}</span></label>
-                                <input
-                                    type="range"
-                                    min="3"
-                                    max="20"
-                                    value={teamCount}
-                                    onChange={(e) => setTeamCount(parseInt(e.target.value))}
-                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                />
-                                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                    <span>3 Teams</span>
-                                    <span>20 Teams</span>
-                                </div>
-                            </div>
                             <button
-                                onClick={handleAdminSubmit}
+                                onClick={handleAdminLogin}
                                 className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
                             >
-                                CREATE ROOM <Play size={20} fill="currentColor" />
+                                <LogIn size={20} /> LOGIN
                             </button>
                         </div>
-                    )}
+                    ) : (
+                        <>
+                            {/* Logged in indicator */}
+                            <div className="flex items-center justify-between py-2 px-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
+                                <span className="text-sm font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
+                                    <Check size={16} /> Admin Logged In
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setIsAdminLoggedIn(false);
+                                        setAdminPassword('');
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-500 transition"
+                                >
+                                    Logout
+                                </button>
+                            </div>
 
-                    {/* Add New Room Button */}
-                    {gameRooms.length > 0 && !showCreateForm && (
-                        <button
-                            onClick={() => setShowCreateForm(true)}
-                            className="w-full py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600"
-                        >
-                            <Plus size={18} /> Add New Room
-                        </button>
+                            {/* Game Rooms List - Always show this section */}
+                            {!showCreateForm && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">
+                                            Game Rooms {gameRooms.length > 0 && `(${gameRooms.length})`}
+                                        </label>
+                                    </div>
+                                    {gameRooms.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                            {gameRooms.map((room) => (
+                                                <div
+                                                    key={room.roomId}
+                                                    className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
+                                                >
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
+                                                                <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
+                                                                    {getPhaseLabel(room.phase)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 ml-2">
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                R{room.currentRound} | {room.teamCount} teams
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleAdminDelete(room.roomId)}
+                                                            className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
+                                                        >
+                                                            <Trash2 size={14} /> Delete
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleEnterRoom(room.roomId)}
+                                                            className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
+                                                        >
+                                                            Enter <ChevronRight size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-600">
+                                            <p className="font-medium">개설된 방이 없습니다</p>
+                                            <p className="text-xs mt-1">아래 버튼을 눌러 새 방을 만드세요</p>
+                                        </div>
+                                    )}
+                                    {/* Add New Room Button - Always visible when not in create mode */}
+                                    <button
+                                        onClick={() => setShowCreateForm(true)}
+                                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition flex items-center justify-center gap-2"
+                                    >
+                                        <Plus size={18} /> 새 방 만들기
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Create New Room Form */}
+                            {showCreateForm && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">새 방 만들기</label>
+                                        <button
+                                            onClick={() => setShowCreateForm(false)}
+                                            className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                        >
+                                            ← 목록으로
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
+                                        <input
+                                            type="text"
+                                            value={newRoomName}
+                                            onChange={(e) => setNewRoomName(e.target.value)}
+                                            placeholder="e.g. Class A Economy"
+                                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Number of Teams: <span className="text-purple-500">{teamCount}</span></label>
+                                        <input
+                                            type="range"
+                                            min="3"
+                                            max="20"
+                                            value={teamCount}
+                                            onChange={(e) => setTeamCount(parseInt(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                            <span>3 Teams</span>
+                                            <span>20 Teams</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleAdminSubmit}
+                                        disabled={isCreating}
+                                        className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isCreating ? '생성 중...' : <>CREATE ROOM <Play size={20} fill="currentColor" /></>}
+                                    </button>
+                                </div>
+                            )}
+
+                        </>
                     )}
                 </>
             )}

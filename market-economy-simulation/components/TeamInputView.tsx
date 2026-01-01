@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team } from '../types';
 import { INITIAL_CARDS } from '../constants';
-import { CheckCircle, X, AlertCircle, TrendingUp, Lock, Users, BookOpen } from 'lucide-react';
+import { CheckCircle, X, AlertCircle, TrendingUp, Lock, Users, BookOpen, Sun, Moon } from 'lucide-react';
 
 interface TeamInputViewProps {
   team: Team;
@@ -13,6 +13,9 @@ interface TeamInputViewProps {
   isUserMode?: boolean;
   members?: string[];
   isAlreadySubmitted?: boolean; // 이미 제출했는지 여부 (Firebase에서 동기화)
+  submittedCards?: { card1: number; card2: number } | null; // 제출된 카드 값
+  toggleTheme?: () => void;
+  isDarkMode?: boolean;
 }
 
 export const TeamInputView: React.FC<TeamInputViewProps> = ({
@@ -24,7 +27,10 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
   onShowRules,
   isUserMode = false,
   members = [],
-  isAlreadySubmitted = false
+  isAlreadySubmitted = false,
+  submittedCards = null,
+  toggleTheme,
+  isDarkMode = true
 }) => {
   const cardStates = useMemo(() => {
     const states = new Array(INITIAL_CARDS.length).fill(false);
@@ -95,7 +101,7 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
         </div>
         <div className="flex items-center gap-2">
             {isUserMode && onShowRules && (
-                <button 
+                <button
                     onClick={onShowRules}
                     className="flex items-center gap-1 px-3 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition border border-purple-200 dark:border-purple-800"
                 >
@@ -103,8 +109,16 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
                     <span className="text-xs font-bold hidden md:inline">전체 규칙</span>
                 </button>
             )}
+            {isUserMode && toggleTheme && (
+                <button
+                    onClick={toggleTheme}
+                    className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition border border-gray-200 dark:border-slate-600"
+                >
+                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+            )}
             {!isUserMode && (
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 bg-gray-200 dark:bg-slate-700 rounded-full hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-white transition ml-2"
               >
@@ -134,30 +148,48 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
             <div className="w-full max-w-md mb-6 mt-2 shrink-0">
                 <div className="flex justify-center gap-4">
                     {[0, 1].map((slotIdx) => {
+                    // 제출 완료된 경우 submittedCards에서 값을 가져옴
+                    const submittedValue = isSubmitted && submittedCards
+                        ? (slotIdx === 0 ? submittedCards.card1 : submittedCards.card2)
+                        : null;
+
                     const poolIndex = selectedIndices[slotIdx];
-                    const hasCard = poolIndex !== undefined;
-                    const cardValue = hasCard ? INITIAL_CARDS[poolIndex] : null;
+                    const hasSelectedCard = poolIndex !== undefined;
+                    const selectedCardValue = hasSelectedCard ? INITIAL_CARDS[poolIndex] : null;
+
+                    // 제출된 카드가 있으면 그것을, 없으면 선택된 카드를 표시
+                    const displayValue = submittedValue ?? selectedCardValue;
+                    const hasCard = displayValue !== null;
 
                     return (
-                        <div 
+                        <div
                         key={slotIdx}
-                        onClick={() => hasCard && !isSubmitted && toggleCardSelection(poolIndex)}
+                        onClick={() => hasSelectedCard && !isSubmitted && toggleCardSelection(poolIndex)}
                         className={`
                             w-28 h-40 md:w-32 md:h-44 rounded-2xl border-2 flex items-center justify-center text-5xl font-mono font-bold transition-all duration-300 relative overflow-hidden group
-                            ${hasCard 
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-100' 
+                            ${hasCard
+                            ? isSubmitted
+                                ? 'bg-gradient-to-br from-green-500 to-emerald-600 border-green-400 text-white shadow-lg shadow-green-500/30 scale-100'
+                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-100'
                             : 'bg-gray-200 dark:bg-slate-800 border-dashed border-gray-400 dark:border-slate-600 text-gray-400 dark:text-slate-600'
                             }
-                            ${!isSubmitted && hasCard ? 'cursor-pointer' : ''}
+                            ${!isSubmitted && hasSelectedCard ? 'cursor-pointer' : ''}
                         `}
                         >
                         {hasCard ? (
                             <>
-                                <div className="absolute top-2 left-3 text-sm opacity-50">CARD</div>
-                                {cardValue}
+                                <div className="absolute top-2 left-3 text-sm opacity-50">
+                                    {isSubmitted ? 'SUBMITTED' : 'CARD'}
+                                </div>
+                                {displayValue}
                                 {!isSubmitted && (
                                     <div className="absolute bottom-2 right-3 text-xs opacity-50 transition-opacity group-hover:opacity-100 bg-black/20 px-2 py-1 rounded">
                                         remove
+                                    </div>
+                                )}
+                                {isSubmitted && (
+                                    <div className="absolute bottom-2 right-3">
+                                        <CheckCircle size={16} className="opacity-70" />
                                     </div>
                                 )}
                             </>

@@ -64,7 +64,7 @@ export interface TimerState {
 }
 
 export interface RevealedCards {
-  [teamId: number]: boolean; // track which team's cards have been revealed
+  [teamId: number]: number; // track how many cards revealed per team (0, 1, or 2)
 }
 
 export interface GameState {

@@ -13,7 +13,8 @@ import {
   deleteGameRoom,
   generateRoomId,
   getGameState,
-  subscribeToGameRooms
+  subscribeToGameRooms,
+  updatePendingSubmission
 } from './utils/firebase';
 
 const GAME_STORAGE_KEY = 'MARKET_SIM_STATE';
@@ -45,6 +46,8 @@ const App: React.FC = () => {
 
   // Ref to track if update is from Firebase (to prevent save loop)
   const isFromFirebase = useRef(false);
+  // Ref to track if pending submission update is in progress (skip full save)
+  const isPendingSubmissionUpdate = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
 
@@ -161,7 +164,8 @@ const App: React.FC = () => {
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
 
     // Save to Firebase if configured
-    if (useFirebase && roomId) {
+    // 단, pendingSubmission 업데이트 중에는 전체 상태 저장을 건너뜀 (원자적 업데이트 사용)
+    if (useFirebase && roomId && !isPendingSubmissionUpdate.current) {
       saveGameState(roomId, gameState).catch(console.error);
     }
   }, [gameState, roomId, useFirebase]);
@@ -185,6 +189,45 @@ const App: React.FC = () => {
 
 
   // --- Actions ---
+
+  // Create a new room without entering it (stays on login screen)
+  const handleCreateRoom = async (roomName: string, teamCount: number): Promise<boolean> => {
+    const newTeams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
+      id: i + 1,
+      name: `Team ${i + 1}`,
+      totalScore: 0,
+      remainingCards: [...INITIAL_CARDS],
+      members: [],
+      history: [],
+    }));
+
+    const newState: GameState = {
+      roomName,
+      phase: GamePhase.PLAYING,
+      currentRound: 1,
+      teams: newTeams,
+      roundHistory: [],
+      pendingSubmissions: {},
+      revealedCards: {},
+      timer: undefined,
+    };
+
+    // Generate 6-digit room code
+    const newRoomId = generateRoomId();
+
+    // Firebase에 저장하고 완료될 때까지 기다림
+    if (useFirebase) {
+      try {
+        await saveGameState(newRoomId, newState, true); // isNew = true
+        // 저장 성공 - Firebase 구독이 자동으로 gameRooms를 업데이트함
+        return true;
+      } catch (error) {
+        console.error('Failed to create room:', error);
+        return false;
+      }
+    }
+    return false;
+  };
 
   const handleAdminStart = (roomName: string, teamCount: number) => {
     const newTeams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
@@ -297,8 +340,16 @@ const App: React.FC = () => {
     setUserRole('USER');
   };
 
-  // 팀별 카드 제출 (Firebase 동기화)
+  // 팀별 카드 제출 (Firebase 원자적 업데이트 - 동시 제출 지원)
   const handleTeamSubmit = (teamId: number, card1: number, card2: number) => {
+    // Firebase에 원자적으로 업데이트 (다른 팀 제출에 영향 없음)
+    if (useFirebase && roomId) {
+      // 플래그 설정: 전체 상태 저장 건너뛰기
+      isPendingSubmissionUpdate.current = true;
+      updatePendingSubmission(roomId, teamId, card1, card2).catch(console.error);
+    }
+
+    // 로컬 상태 업데이트 (즉각적인 UI 피드백)
     setGameState(prev => ({
       ...prev,
       pendingSubmissions: {
@@ -306,6 +357,11 @@ const App: React.FC = () => {
         [teamId]: { card1, card2 }
       }
     }));
+
+    // 플래그 리셋 (다음 이벤트 루프에서)
+    setTimeout(() => {
+      isPendingSubmissionUpdate.current = false;
+    }, 100);
   };
 
   // Timer control functions
@@ -333,15 +389,19 @@ const App: React.FC = () => {
     }));
   };
 
-  // Card reveal functions
+  // Card reveal functions - increment reveal count (0 -> 1 -> 2)
   const handleRevealCard = (teamId: number) => {
-    setGameState(prev => ({
-      ...prev,
-      revealedCards: {
-        ...(prev.revealedCards || {}),
-        [teamId]: true
-      }
-    }));
+    setGameState(prev => {
+      const currentCount = (prev.revealedCards || {})[teamId] || 0;
+      if (currentCount >= 2) return prev; // Already fully revealed
+      return {
+        ...prev,
+        revealedCards: {
+          ...(prev.revealedCards || {}),
+          [teamId]: currentCount + 1
+        }
+      };
+    });
   };
 
   const resetRevealedCards = () => {
@@ -427,6 +487,13 @@ const App: React.FC = () => {
     setCurrentUser(null);
   };
 
+  // Go back to home/login screen without deleting data
+  const handleGoHome = () => {
+    setUserRole(null);
+    setCurrentUser(null);
+    setViewingResult(null);
+  };
+
   // Determine viewing state logic
   const showLogin = !userRole;
 
@@ -435,6 +502,7 @@ const App: React.FC = () => {
       {showLogin ? (
         <LoginScreen
           onAdminStart={handleAdminStart}
+          onCreateRoom={handleCreateRoom}
           onAdminResume={handleAdminResume}
           onDeleteRoom={handleDeleteRoom}
           onSelectRoom={handleSelectRoom}
@@ -470,6 +538,9 @@ const App: React.FC = () => {
                 onTimerStop={handleTimerStop}
                 revealedCards={gameState.revealedCards || {}}
                 onRevealCard={handleRevealCard}
+                onGoHome={handleGoHome}
+                roomCode={roomId}
+                roomName={gameState.roomName || ''}
               />
               {viewingResult && (
                 <RoundResultModal

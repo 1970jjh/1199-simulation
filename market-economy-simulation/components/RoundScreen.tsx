@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Team, CardSubmission, MarketType, RoundResult, Player, PendingSubmission, TimerState, RevealedCards } from '../types';
 import { getMarketName, getMarketDescription, getMarketType, TOTAL_ROUNDS, getDetailedRules, GENERAL_RULES } from '../constants';
 import { TeamInputView } from './TeamInputView';
-import { Smartphone, Check, Lock, Trophy, BookOpen, X, TrendingUp, History, Timer, ArrowRight, Play, Square, Users, Sun, Moon, Clock, ChevronDown, Volume2 } from 'lucide-react';
+import { SharePopup } from './SharePopup';
+import { Smartphone, Check, Lock, Trophy, BookOpen, X, TrendingUp, History, Timer, ArrowRight, Play, Square, Users, Sun, Moon, Clock, ChevronDown, Volume2, Home, Share2 } from 'lucide-react';
 
 interface RoundScreenProps {
   round: number;
@@ -23,9 +24,12 @@ interface RoundScreenProps {
   onTimerStop: () => void;
   revealedCards: RevealedCards;
   onRevealCard: (teamId: number) => void;
+  onGoHome: () => void;
+  roomCode: string;
+  roomName: string;
 }
 
-const TIMER_OPTIONS = [2, 3, 4, 5, 10, 15]; // minutes
+const TIMER_OPTIONS = [1, 2, 3, 4, 5, 10, 15, 20, 30]; // minutes
 
 export const RoundScreen: React.FC<RoundScreenProps> = ({
   round,
@@ -45,7 +49,10 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
   onTimerStart,
   onTimerStop,
   revealedCards,
-  onRevealCard
+  onRevealCard,
+  onGoHome,
+  roomCode,
+  roomName
 }) => {
   // Use synced submissions from Firebase
   const submissions = pendingSubmissions;
@@ -54,8 +61,8 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
   const [showTimerDropdown, setShowTimerDropdown] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
   const [lastAlertedMinute, setLastAlertedMinute] = useState<number | null>(null);
-  const [showResultsCountdown, setShowResultsCountdown] = useState(false);
-  const [resultsCountdown, setResultsCountdown] = useState(5);
+  const [customMinutes, setCustomMinutes] = useState<number>(5);
+  const [showSharePopup, setShowSharePopup] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -177,41 +184,11 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
     onSubmitRound(result);
   };
 
-  // Check if all cards are revealed
-  const allCardsRevealed = isRoundComplete &&
-    teams.every(t => revealedCards[t.id] === true);
-
-  // Auto-show results after all cards are revealed
-  useEffect(() => {
-    if (allCardsRevealed && !showResultsCountdown && roundHistory.length > 0) {
-      setShowResultsCountdown(true);
-      setResultsCountdown(5);
-    }
-  }, [allCardsRevealed, showResultsCountdown, roundHistory.length]);
-
-  useEffect(() => {
-    if (showResultsCountdown && resultsCountdown > 0) {
-      const interval = setInterval(() => {
-        setResultsCountdown(prev => prev - 1);
-      }, 1000);
-      return () => clearInterval(interval);
-    } else if (showResultsCountdown && resultsCountdown <= 0) {
-      // Show the result modal
-      const lastResult = roundHistory[roundHistory.length - 1];
-      if (lastResult) {
-        onViewResult(lastResult);
-      }
-      setShowResultsCountdown(false);
-    }
-  }, [showResultsCountdown, resultsCountdown, roundHistory, onViewResult]);
-
-  // Reset countdown state when round changes
-  useEffect(() => {
-    setShowResultsCountdown(false);
-    setResultsCountdown(5);
-  }, [round]);
-
   const allSubmitted = teams.every(t => submissions[t.id]);
+
+  // Check if all cards are revealed (each team needs 2 cards revealed)
+  const allCardsRevealed = allSubmitted &&
+    teams.every(t => (revealedCards[t.id] || 0) >= 2);
   const activeTeam = userRole === 'USER' && currentUser
     ? teams.find(t => t.id === currentUser.teamId)
     : teams.find(t => t.id === activeTeamId);
@@ -264,14 +241,6 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
           <div className="h-screen flex flex-col bg-gray-100 dark:bg-slate-900 overflow-hidden relative">
               {rulesModal}
 
-              {/* Theme toggle for user view */}
-              <button
-                onClick={toggleTheme}
-                className="absolute top-4 right-4 z-50 p-2 rounded-full bg-white/20 dark:bg-black/20 backdrop-blur-md border border-white/30 text-gray-700 dark:text-white hover:scale-110 transition-transform"
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-
               {/* Timer display for user (synced from admin) */}
               {timer?.isRunning && remainingTime > 0 && (
                 <div className={`
@@ -303,6 +272,9 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     isUserMode={true}
                     members={activeTeam.members}
                     isAlreadySubmitted={isAlreadySubmitted}
+                    submittedCards={submissions[activeTeam.id] || null}
+                    toggleTheme={toggleTheme}
+                    isDarkMode={isDarkMode}
                  />
               </div>
           </div>
@@ -314,13 +286,38 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
     <div className="max-w-[1600px] mx-auto p-4 pb-40">
       {rulesModal}
 
-      {/* Theme toggle for admin */}
-      <button
-        onClick={toggleTheme}
-        className="fixed top-4 right-4 z-50 p-3 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-slate-700 shadow-lg text-gray-700 dark:text-white hover:scale-110 transition-transform"
-      >
-        {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
-      </button>
+      {/* Share Popup */}
+      {showSharePopup && (
+        <SharePopup
+          roomCode={roomCode}
+          roomName={roomName}
+          onClose={() => setShowSharePopup(false)}
+        />
+      )}
+
+      {/* Top right controls for admin */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => setShowSharePopup(true)}
+          className="p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-md border border-blue-400 shadow-lg text-white hover:scale-110 transition-transform"
+          title="참여 링크 공유"
+        >
+          <Share2 size={24} />
+        </button>
+        <button
+          onClick={onGoHome}
+          className="p-3 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-slate-700 shadow-lg text-gray-700 dark:text-white hover:scale-110 transition-transform"
+          title="Go to Home"
+        >
+          <Home size={24} />
+        </button>
+        <button
+          onClick={toggleTheme}
+          className="p-3 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-slate-700 shadow-lg text-gray-700 dark:text-white hover:scale-110 transition-transform"
+        >
+          {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
+        </button>
+      </div>
 
       {/* Input Modal for Admin clicking on a team */}
       {activeTeam && userRole === 'ADMIN' && (
@@ -333,6 +330,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
           onSubmit={handleTeamSubmit}
           isUserMode={false}
           isAlreadySubmitted={!!submissions[activeTeam.id]}
+          submittedCards={submissions[activeTeam.id] || null}
         />
       )}
 
@@ -347,63 +345,78 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     <Clock size={20} className="text-green-500" />
                     <h3 className="font-bold font-mono text-gray-800 dark:text-white">TIME LIMIT</h3>
                 </div>
-                <div className="p-4">
+                <div className="p-4 space-y-4">
+                  {/* Timer Display - Always Visible */}
+                  <div className={`
+                    text-center py-4 rounded-xl font-mono text-4xl font-bold
+                    ${timer?.isRunning
+                      ? remainingTime <= 60
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse'
+                        : remainingTime <= 180
+                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                          : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500'
+                    }
+                  `}>
+                    {timer?.isRunning ? formatTime(remainingTime) : `${customMinutes}:00`}
+                  </div>
+
                   {timer?.isRunning ? (
-                    <div className="space-y-4">
-                      <div className={`
-                        text-center py-4 rounded-xl font-mono text-4xl font-bold
-                        ${remainingTime <= 60
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse'
-                          : remainingTime <= 180
-                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                        }
-                      `}>
-                        {formatTime(remainingTime)}
-                      </div>
-                      <button
-                        onClick={onTimerStop}
-                        className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
-                      >
-                        <Square size={18} fill="currentColor" /> STOP TIMER
-                      </button>
-                    </div>
+                    <button
+                      onClick={onTimerStop}
+                      className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
+                    >
+                      <Square size={18} fill="currentColor" /> STOP TIMER
+                    </button>
                   ) : (
-                    <div className="relative">
+                    <div className="space-y-3">
+                      {/* Custom Minutes Input */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">SET TIME:</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={customMinutes}
+                          onChange={(e) => setCustomMinutes(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
+                          className="flex-1 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-center font-mono font-bold text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">min</span>
+                      </div>
+
+                      {/* Quick Select Buttons */}
+                      <div className="flex flex-wrap gap-1">
+                        {TIMER_OPTIONS.map(minutes => (
+                          <button
+                            key={minutes}
+                            onClick={() => setCustomMinutes(minutes)}
+                            className={`
+                              px-2 py-1 text-xs font-mono font-bold rounded-lg transition
+                              ${customMinutes === minutes
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-600'
+                              }
+                            `}
+                          >
+                            {minutes}m
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Start Button */}
                       <button
-                        onClick={() => setShowTimerDropdown(!showTimerDropdown)}
+                        onClick={() => onTimerStart(customMinutes)}
                         className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition"
                       >
                         <Play size={18} fill="currentColor" /> START TIMER
-                        <ChevronDown size={18} className={`transition-transform ${showTimerDropdown ? 'rotate-180' : ''}`} />
                       </button>
-
-                      {showTimerDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-slate-700 overflow-hidden z-50">
-                          {TIMER_OPTIONS.map(minutes => (
-                            <button
-                              key={minutes}
-                              onClick={() => {
-                                onTimerStart(minutes);
-                                setShowTimerDropdown(false);
-                              }}
-                              className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-slate-700 font-mono font-bold text-gray-700 dark:text-gray-300 flex items-center justify-between border-b border-gray-100 dark:border-slate-700 last:border-0"
-                            >
-                              <span>{minutes} minutes</span>
-                              <span className="text-gray-400">{minutes}:00</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )}
 
-                  {timer?.isRunning && (
-                    <div className="mt-3 flex items-center justify-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                      <Volume2 size={14} />
-                      <span>Alarm will sound at each minute</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                    <Volume2 size={14} />
+                    <span>Alarm will sound at each minute</span>
+                  </div>
                 </div>
               </div>
 
@@ -512,8 +525,9 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 mb-8">
                 {teams.map(team => {
                 const isSubmitted = !!submissions[team.id];
-                const isRevealed = revealedCards[team.id];
+                const revealCount = revealedCards[team.id] || 0; // 0, 1, or 2 cards revealed
                 const teamSubmission = submissions[team.id];
+                const canRevealCards = isSubmitted && !isRoundComplete; // Can reveal after submit, before calculate
 
                 return (
                     <div
@@ -538,48 +552,39 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                         </div>
 
                         <div className="flex-1 flex flex-col justify-center items-center py-2 md:py-4 space-y-2">
-                        {isRoundComplete && isSubmitted ? (
-                            // Card reveal section
+                        {isSubmitted ? (
+                            // Card reveal section - click to reveal individual cards
                             <div className="flex gap-2">
-                              {[teamSubmission?.card1, teamSubmission?.card2].map((cardValue, idx) => (
-                                <div
-                                  key={idx}
-                                  onClick={() => !isRevealed && onRevealCard(team.id)}
-                                  className={`
-                                    w-12 h-16 md:w-14 md:h-20 rounded-lg flex items-center justify-center
-                                    font-mono font-bold text-xl md:text-2xl cursor-pointer
-                                    transition-all duration-500 transform-gpu
-                                    ${isRevealed
-                                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg'
-                                      : 'bg-gradient-to-br from-slate-700 to-slate-900 text-transparent hover:scale-105'
-                                    }
-                                    ${!isRevealed ? 'card-back' : 'card-front'}
-                                  `}
-                                  style={{
-                                    perspective: '1000px',
-                                  }}
-                                >
-                                  {isRevealed ? cardValue : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <div className="w-6 h-8 md:w-8 md:h-10 border-2 border-slate-500 rounded-sm opacity-50" />
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                        ) : isSubmitted && !isRoundComplete ? (
-                            // Card back display (before calculate results)
-                            <div className="flex gap-2">
-                              {[0, 1].map((idx) => (
-                                <div
-                                  key={idx}
-                                  className="w-12 h-16 md:w-14 md:h-20 rounded-lg flex items-center justify-center
-                                    bg-gradient-to-br from-slate-700 to-slate-900
-                                    shadow-lg border border-slate-600"
-                                >
-                                  <div className="w-6 h-8 md:w-8 md:h-10 border-2 border-slate-500 rounded-sm opacity-50" />
-                                </div>
-                              ))}
+                              {[teamSubmission?.card1, teamSubmission?.card2].map((cardValue, idx) => {
+                                const isCardRevealed = revealCount > idx; // First click reveals card1, second reveals card2
+                                const canClickCard = canRevealCards && revealCount === idx; // Can only click the next unrevealed card
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    onClick={() => canClickCard && onRevealCard(team.id)}
+                                    className={`
+                                      w-12 h-16 md:w-14 md:h-20 rounded-lg flex items-center justify-center
+                                      font-mono font-bold text-xl md:text-2xl
+                                      transition-all duration-500 transform-gpu
+                                      ${isCardRevealed
+                                        ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg'
+                                        : 'bg-gradient-to-br from-slate-700 to-slate-900 text-transparent'
+                                      }
+                                      ${canClickCard ? 'cursor-pointer hover:scale-105 ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-slate-800' : !isCardRevealed ? 'cursor-default' : ''}
+                                    `}
+                                    style={{
+                                      perspective: '1000px',
+                                    }}
+                                  >
+                                    {isCardRevealed ? cardValue : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <div className="w-6 h-8 md:w-8 md:h-10 border-2 border-slate-500 rounded-sm opacity-50" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center opacity-50">
@@ -615,20 +620,6 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                 );
                 })}
             </div>
-
-            {/* Results countdown message */}
-            {showResultsCountdown && (
-              <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[100]
-                bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 text-center
-                border border-gray-200 dark:border-slate-600"
-              >
-                <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">All Cards Revealed!</h3>
-                <div className="text-6xl font-mono font-bold text-blue-600 dark:text-blue-400 mb-4">
-                  {resultsCountdown}
-                </div>
-                <p className="text-gray-600 dark:text-gray-400">Results will appear in {resultsCountdown} seconds...</p>
-              </div>
-            )}
 
             {/* Round Rules (Bottom) */}
             <div className="bg-slate-900 text-white rounded-2xl shadow-lg border border-slate-700 overflow-hidden relative mb-32">
@@ -684,14 +675,18 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     <>
                         <div className="hidden md:flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mr-4">
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                            ADMIN CONSOLE: Ensure all teams submit before calculating.
+                            {allSubmitted
+                              ? allCardsRevealed
+                                ? 'All cards revealed. Ready to calculate!'
+                                : 'Click cards to reveal before calculating.'
+                              : 'Waiting for all teams to submit...'}
                         </div>
                         <button
-                            disabled={!allSubmitted}
+                            disabled={!allCardsRevealed}
                             onClick={finalizeRound}
                             className={`
                                 px-8 py-3 md:py-4 rounded-xl font-bold text-lg transition-all transform flex items-center justify-center gap-3
-                                ${allSubmitted
+                                ${allCardsRevealed
                                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/40 hover:-translate-y-1'
                                     : 'bg-gray-200 dark:bg-slate-800 text-gray-400 cursor-not-allowed'
                                 }
