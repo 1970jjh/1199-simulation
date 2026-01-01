@@ -4,7 +4,7 @@ import { GameRoomSummary, GamePhase } from '../types';
 
 interface LoginScreenProps {
   onAdminStart: (roomName: string, teamCount: number) => void;
-  onCreateRoom: (roomName: string, teamCount: number) => void;
+  onCreateRoom: (roomName: string, teamCount: number) => Promise<boolean>;
   onAdminResume: () => void;
   onDeleteRoom: (roomId?: string) => void;
   onSelectRoom: (roomId: string) => void;
@@ -50,6 +50,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [teamCount, setTeamCount] = useState(3);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleAdminLogin = () => {
     if (adminPassword !== '6749467') {
@@ -60,7 +61,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setIsAdminLoggedIn(true);
   };
 
-  const handleAdminSubmit = () => {
+  const handleAdminSubmit = async () => {
     if (adminPassword !== '6749467') {
       setError('Invalid Password');
       return;
@@ -71,12 +72,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         setError('Enter Room Name');
         return;
     }
-    // Create room without entering it
-    onCreateRoom(newRoomName, teamCount);
-    setNewRoomName('');
-    setShowCreateForm(false);
+
+    // Create room and wait for Firebase save
+    setIsCreating(true);
     setError('');
-    // Room will appear in the list via Firebase sync
+
+    try {
+      const success = await onCreateRoom(newRoomName, teamCount);
+      if (success) {
+        setNewRoomName('');
+        setShowCreateForm(false);
+        // Room will appear in the list via Firebase subscription
+      } else {
+        setError('방 생성에 실패했습니다. 다시 시도해주세요.');
+      }
+    } catch (e) {
+      setError('방 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleAdminDelete = (targetRoomId?: string) => {
@@ -523,9 +537,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                     </div>
                                     <button
                                         onClick={handleAdminSubmit}
-                                        className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
+                                        disabled={isCreating}
+                                        className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        CREATE ROOM <Play size={20} fill="currentColor" />
+                                        {isCreating ? '생성 중...' : <>CREATE ROOM <Play size={20} fill="currentColor" /></>}
                                     </button>
                                 </div>
                             )}

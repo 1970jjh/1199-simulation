@@ -191,7 +191,7 @@ const App: React.FC = () => {
   // --- Actions ---
 
   // Create a new room without entering it (stays on login screen)
-  const handleCreateRoom = (roomName: string, teamCount: number) => {
+  const handleCreateRoom = async (roomName: string, teamCount: number): Promise<boolean> => {
     const newTeams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
       id: i + 1,
       name: `Team ${i + 1}`,
@@ -214,24 +214,19 @@ const App: React.FC = () => {
 
     // Generate 6-digit room code
     const newRoomId = generateRoomId();
-    const now = Date.now();
 
-    // 로컬 상태에 즉시 추가 (낙관적 업데이트)
-    const newRoomSummary: GameRoomSummary = {
-      roomId: newRoomId,
-      roomName,
-      phase: GamePhase.PLAYING,
-      currentRound: 1,
-      teamCount,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setGameRooms(prev => [newRoomSummary, ...prev]);
-
-    // Save to Firebase (subscription will also update but local is instant)
+    // Firebase에 저장하고 완료될 때까지 기다림
     if (useFirebase) {
-      saveGameState(newRoomId, newState, true).catch(console.error); // isNew = true
+      try {
+        await saveGameState(newRoomId, newState, true); // isNew = true
+        // 저장 성공 - Firebase 구독이 자동으로 gameRooms를 업데이트함
+        return true;
+      } catch (error) {
+        console.error('Failed to create room:', error);
+        return false;
+      }
     }
+    return false;
   };
 
   const handleAdminStart = (roomName: string, teamCount: number) => {
