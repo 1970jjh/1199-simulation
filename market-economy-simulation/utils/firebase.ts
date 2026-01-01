@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue, remove, get, Database } from 'firebase/database';
+import { getDatabase, ref, set, onValue, remove, get, update, Database } from 'firebase/database';
 import { GameState, GamePhase, Team, GameRoomSummary } from '../types';
 import { INITIAL_CARDS } from '../constants';
 
@@ -95,6 +95,25 @@ export const saveGameState = async (roomId: string, state: GameState, isNew: boo
   }
 
   await set(gameRef, dataToSave);
+};
+
+// 팀별 제출 원자적 업데이트 (동시 제출 충돌 방지)
+export const updatePendingSubmission = async (
+  roomId: string,
+  teamId: number,
+  card1: number,
+  card2: number
+): Promise<void> => {
+  const db = initializeFirebase();
+  if (!db) return;
+
+  // 특정 팀의 제출만 업데이트 (다른 팀 제출에 영향 없음)
+  const submissionRef = ref(db, `games/${roomId}/pendingSubmissions/${teamId}`);
+  await set(submissionRef, { card1, card2 });
+
+  // updatedAt도 업데이트
+  const updatedAtRef = ref(db, `games/${roomId}/updatedAt`);
+  await set(updatedAtRef, Date.now());
 };
 
 // 게임 상태 실시간 구독

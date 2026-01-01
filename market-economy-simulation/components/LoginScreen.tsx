@@ -420,68 +420,82 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                 </button>
                             </div>
 
-                            {/* Game Rooms List */}
-                            {gameRooms.length > 0 && !showCreateForm && (
+                            {/* Game Rooms List - Always show this section */}
+                            {!showCreateForm && (
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Active Game Rooms ({gameRooms.length})</label>
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">
+                                            Game Rooms {gameRooms.length > 0 && `(${gameRooms.length})`}
+                                        </label>
                                     </div>
-                                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                        {gameRooms.map((room) => (
-                                            <div
-                                                key={room.roomId}
-                                                className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
-                                            >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
-                                                            <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
-                                                                {getPhaseLabel(room.phase)}
+                                    {gameRooms.length > 0 ? (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                            {gameRooms.map((room) => (
+                                                <div
+                                                    key={room.roomId}
+                                                    className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
+                                                >
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
+                                                                <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
+                                                                    {getPhaseLabel(room.phase)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 ml-2">
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                R{room.currentRound} | {room.teamCount} teams
                                                             </span>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-1 ml-2">
-                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                            R{room.currentRound} | {room.teamCount} teams
-                                                        </span>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleAdminDelete(room.roomId)}
+                                                            className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
+                                                        >
+                                                            <Trash2 size={14} /> Delete
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleEnterRoom(room.roomId)}
+                                                            className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
+                                                        >
+                                                            Enter <ChevronRight size={16} />
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleAdminDelete(room.roomId)}
-                                                        className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
-                                                    >
-                                                        <Trash2 size={14} /> Delete
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleEnterRoom(room.roomId)}
-                                                        className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
-                                                    >
-                                                        Enter <ChevronRight size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-600">
+                                            <p className="font-medium">개설된 방이 없습니다</p>
+                                            <p className="text-xs mt-1">아래 버튼을 눌러 새 방을 만드세요</p>
+                                        </div>
+                                    )}
+                                    {/* Add New Room Button - Always visible when not in create mode */}
+                                    <button
+                                        onClick={() => setShowCreateForm(true)}
+                                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition flex items-center justify-center gap-2"
+                                    >
+                                        <Plus size={18} /> 새 방 만들기
+                                    </button>
                                 </div>
                             )}
 
                             {/* Create New Room Form */}
-                            {(showCreateForm || gameRooms.length === 0) && (
+                            {showCreateForm && (
                                 <div className="space-y-4">
-                                    {gameRooms.length > 0 && (
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Create New Room</label>
-                                            <button
-                                                onClick={() => setShowCreateForm(false)}
-                                                className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                                            >
-                                                ← Back to list
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">새 방 만들기</label>
+                                        <button
+                                            onClick={() => setShowCreateForm(false)}
+                                            className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                        >
+                                            ← 목록으로
+                                        </button>
+                                    </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
                                         <input
@@ -516,15 +530,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                 </div>
                             )}
 
-                            {/* Add New Room Button */}
-                            {gameRooms.length > 0 && !showCreateForm && (
-                                <button
-                                    onClick={() => setShowCreateForm(true)}
-                                    className="w-full py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600"
-                                >
-                                    <Plus size={18} /> Add New Room
-                                </button>
-                            )}
                         </>
                     )}
                 </>

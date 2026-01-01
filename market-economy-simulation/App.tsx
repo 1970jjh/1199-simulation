@@ -13,7 +13,8 @@ import {
   deleteGameRoom,
   generateRoomId,
   getGameState,
-  subscribeToGameRooms
+  subscribeToGameRooms,
+  updatePendingSubmission
 } from './utils/firebase';
 
 const GAME_STORAGE_KEY = 'MARKET_SIM_STATE';
@@ -45,6 +46,8 @@ const App: React.FC = () => {
 
   // Ref to track if update is from Firebase (to prevent save loop)
   const isFromFirebase = useRef(false);
+  // Ref to track if pending submission update is in progress (skip full save)
+  const isPendingSubmissionUpdate = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
 
@@ -161,7 +164,8 @@ const App: React.FC = () => {
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
 
     // Save to Firebase if configured
-    if (useFirebase && roomId) {
+    // 단, pendingSubmission 업데이트 중에는 전체 상태 저장을 건너뜀 (원자적 업데이트 사용)
+    if (useFirebase && roomId && !isPendingSubmissionUpdate.current) {
       saveGameState(roomId, gameState).catch(console.error);
     }
   }, [gameState, roomId, useFirebase]);
@@ -328,8 +332,16 @@ const App: React.FC = () => {
     setUserRole('USER');
   };
 
-  // 팀별 카드 제출 (Firebase 동기화)
+  // 팀별 카드 제출 (Firebase 원자적 업데이트 - 동시 제출 지원)
   const handleTeamSubmit = (teamId: number, card1: number, card2: number) => {
+    // Firebase에 원자적으로 업데이트 (다른 팀 제출에 영향 없음)
+    if (useFirebase && roomId) {
+      // 플래그 설정: 전체 상태 저장 건너뛰기
+      isPendingSubmissionUpdate.current = true;
+      updatePendingSubmission(roomId, teamId, card1, card2).catch(console.error);
+    }
+
+    // 로컬 상태 업데이트 (즉각적인 UI 피드백)
     setGameState(prev => ({
       ...prev,
       pendingSubmissions: {
@@ -337,6 +349,11 @@ const App: React.FC = () => {
         [teamId]: { card1, card2 }
       }
     }));
+
+    // 플래그 리셋 (다음 이벤트 루프에서)
+    setTimeout(() => {
+      isPendingSubmissionUpdate.current = false;
+    }, 100);
   };
 
   // Timer control functions
