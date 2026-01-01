@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Team } from '../types';
 import { INITIAL_CARDS } from '../constants';
-import { CheckCircle, X, AlertCircle, TrendingUp, Lock, Users, BookOpen } from 'lucide-react';
+import { CheckCircle, X, AlertCircle, TrendingUp, Lock, Users, BookOpen, Sun, Moon } from 'lucide-react';
 
 interface TeamInputViewProps {
   team: Team;
@@ -13,6 +13,8 @@ interface TeamInputViewProps {
   isUserMode?: boolean;
   members?: string[];
   isAlreadySubmitted?: boolean; // 이미 제출했는지 여부 (Firebase에서 동기화)
+  toggleTheme?: () => void;
+  isDarkMode?: boolean;
 }
 
 export const TeamInputView: React.FC<TeamInputViewProps> = ({
@@ -24,7 +26,9 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
   onShowRules,
   isUserMode = false,
   members = [],
-  isAlreadySubmitted = false
+  isAlreadySubmitted = false,
+  toggleTheme,
+  isDarkMode = true
 }) => {
   const cardStates = useMemo(() => {
     const states = new Array(INITIAL_CARDS.length).fill(false);
@@ -95,7 +99,7 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
         </div>
         <div className="flex items-center gap-2">
             {isUserMode && onShowRules && (
-                <button 
+                <button
                     onClick={onShowRules}
                     className="flex items-center gap-1 px-3 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition border border-purple-200 dark:border-purple-800"
                 >
@@ -103,8 +107,16 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
                     <span className="text-xs font-bold hidden md:inline">전체 규칙</span>
                 </button>
             )}
+            {isUserMode && toggleTheme && (
+                <button
+                    onClick={toggleTheme}
+                    className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition border border-gray-200 dark:border-slate-600"
+                >
+                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+            )}
             {!isUserMode && (
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 bg-gray-200 dark:bg-slate-700 rounded-full hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-white transition ml-2"
               >

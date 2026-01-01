@@ -4,6 +4,7 @@ import { GameRoomSummary, GamePhase } from '../types';
 
 interface LoginScreenProps {
   onAdminStart: (roomName: string, teamCount: number) => void;
+  onCreateRoom: (roomName: string, teamCount: number) => void;
   onAdminResume: () => void;
   onDeleteRoom: (roomId?: string) => void;
   onSelectRoom: (roomId: string) => void;
@@ -19,6 +20,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onAdminStart,
+  onCreateRoom,
   onAdminResume,
   onDeleteRoom,
   onSelectRoom,
@@ -33,6 +35,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 }) => {
   const [mode, setMode] = useState<'USER' | 'ADMIN'>('USER');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   // User Inputs
   const [userName, setUserName] = useState('');
@@ -47,6 +50,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const handleAdminLogin = () => {
+    if (adminPassword !== '6749467') {
+      setError('Invalid Password');
+      return;
+    }
+    setError('');
+    setIsAdminLoggedIn(true);
+  };
+
   const handleAdminSubmit = () => {
     if (adminPassword !== '6749467') {
       setError('Invalid Password');
@@ -58,9 +70,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         setError('Enter Room Name');
         return;
     }
-    onAdminStart(newRoomName, teamCount);
+    // Create room without entering it
+    onCreateRoom(newRoomName, teamCount);
     setNewRoomName('');
     setShowCreateForm(false);
+    setError('');
+    // Room will appear in the list via Firebase sync
   };
 
   const handleAdminDelete = (targetRoomId?: string) => {
@@ -287,122 +302,151 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </>
             ) : (
                 <>
-                    {/* Admin Password - Always Required */}
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
-                        <input
-                            type="password"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            placeholder="Enter password"
-                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
-                        />
-                    </div>
-
-                    {/* Game Rooms List */}
-                    {gameRooms.length > 0 && !showCreateForm && (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Active Game Rooms ({gameRooms.length})</label>
-                            </div>
-                            <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                {gameRooms.map((room) => (
-                                    <div
-                                        key={room.roomId}
-                                        className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
-                                                        {getPhaseLabel(room.phase)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1 ml-2">
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    R{room.currentRound} | {room.teamCount} teams
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleAdminDelete(room.roomId)}
-                                                className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
-                                            >
-                                                <Trash2 size={14} /> Delete
-                                            </button>
-                                            <button
-                                                onClick={() => handleEnterRoom(room.roomId)}
-                                                className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
-                                            >
-                                                Enter <ChevronRight size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Create New Room Form */}
-                    {(showCreateForm || gameRooms.length === 0) && (
+                    {/* Admin Login Form - Show first */}
+                    {!isAdminLoggedIn ? (
                         <div className="space-y-4">
-                            {gameRooms.length > 0 && (
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Create New Room</label>
-                                    <button
-                                        onClick={() => setShowCreateForm(false)}
-                                        className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                                    >
-                                        ← Back to list
-                                    </button>
-                                </div>
-                            )}
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
                                 <input
-                                    type="text"
-                                    value={newRoomName}
-                                    onChange={(e) => setNewRoomName(e.target.value)}
-                                    placeholder="e.g. Class A Economy"
+                                    type="password"
+                                    value={adminPassword}
+                                    onChange={(e) => setAdminPassword(e.target.value)}
+                                    placeholder="Enter password"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
                                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Number of Teams: <span className="text-purple-500">{teamCount}</span></label>
-                                <input
-                                    type="range"
-                                    min="3"
-                                    max="20"
-                                    value={teamCount}
-                                    onChange={(e) => setTeamCount(parseInt(e.target.value))}
-                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                />
-                                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                    <span>3 Teams</span>
-                                    <span>20 Teams</span>
-                                </div>
-                            </div>
                             <button
-                                onClick={handleAdminSubmit}
+                                onClick={handleAdminLogin}
                                 className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
                             >
-                                CREATE ROOM <Play size={20} fill="currentColor" />
+                                <LogIn size={20} /> LOGIN
                             </button>
                         </div>
-                    )}
+                    ) : (
+                        <>
+                            {/* Logged in indicator */}
+                            <div className="flex items-center justify-between py-2 px-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
+                                <span className="text-sm font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
+                                    <Check size={16} /> Admin Logged In
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setIsAdminLoggedIn(false);
+                                        setAdminPassword('');
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-500 transition"
+                                >
+                                    Logout
+                                </button>
+                            </div>
 
-                    {/* Add New Room Button */}
-                    {gameRooms.length > 0 && !showCreateForm && (
-                        <button
-                            onClick={() => setShowCreateForm(true)}
-                            className="w-full py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600"
-                        >
-                            <Plus size={18} /> Add New Room
-                        </button>
+                            {/* Game Rooms List */}
+                            {gameRooms.length > 0 && !showCreateForm && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Active Game Rooms ({gameRooms.length})</label>
+                                    </div>
+                                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                        {gameRooms.map((room) => (
+                                            <div
+                                                key={room.roomId}
+                                                className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700"
+                                            >
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-gray-800 dark:text-white truncate">{room.roomName}</h3>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">#{room.roomId}</span>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full border ${getPhaseColor(room.phase)}`}>
+                                                                {getPhaseLabel(room.phase)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 ml-2">
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            R{room.currentRound} | {room.teamCount} teams
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleAdminDelete(room.roomId)}
+                                                        className="flex-1 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center justify-center gap-1 text-sm"
+                                                    >
+                                                        <Trash2 size={14} /> Delete
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleEnterRoom(room.roomId)}
+                                                        className="flex-[2] py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-1 text-sm"
+                                                    >
+                                                        Enter <ChevronRight size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Create New Room Form */}
+                            {(showCreateForm || gameRooms.length === 0) && (
+                                <div className="space-y-4">
+                                    {gameRooms.length > 0 && (
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Create New Room</label>
+                                            <button
+                                                onClick={() => setShowCreateForm(false)}
+                                                className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                                            >
+                                                ← Back to list
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Room Name</label>
+                                        <input
+                                            type="text"
+                                            value={newRoomName}
+                                            onChange={(e) => setNewRoomName(e.target.value)}
+                                            placeholder="e.g. Class A Economy"
+                                            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Number of Teams: <span className="text-purple-500">{teamCount}</span></label>
+                                        <input
+                                            type="range"
+                                            min="3"
+                                            max="20"
+                                            value={teamCount}
+                                            onChange={(e) => setTeamCount(parseInt(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                            <span>3 Teams</span>
+                                            <span>20 Teams</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleAdminSubmit}
+                                        className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        CREATE ROOM <Play size={20} fill="currentColor" />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Add New Room Button */}
+                            {gameRooms.length > 0 && !showCreateForm && (
+                                <button
+                                    onClick={() => setShowCreateForm(true)}
+                                    className="w-full py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600"
+                                >
+                                    <Plus size={18} /> Add New Room
+                                </button>
+                            )}
+                        </>
                     )}
                 </>
             )}

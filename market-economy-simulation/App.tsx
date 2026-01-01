@@ -186,6 +186,37 @@ const App: React.FC = () => {
 
   // --- Actions ---
 
+  // Create a new room without entering it (stays on login screen)
+  const handleCreateRoom = (roomName: string, teamCount: number) => {
+    const newTeams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
+      id: i + 1,
+      name: `Team ${i + 1}`,
+      totalScore: 0,
+      remainingCards: [...INITIAL_CARDS],
+      members: [],
+      history: [],
+    }));
+
+    const newState: GameState = {
+      roomName,
+      phase: GamePhase.PLAYING,
+      currentRound: 1,
+      teams: newTeams,
+      roundHistory: [],
+      pendingSubmissions: {},
+      revealedCards: {},
+      timer: undefined,
+    };
+
+    // Generate 6-digit room code
+    const newRoomId = generateRoomId();
+
+    // Save to Firebase only (don't enter the room)
+    if (useFirebase) {
+      saveGameState(newRoomId, newState, true).catch(console.error); // isNew = true
+    }
+  };
+
   const handleAdminStart = (roomName: string, teamCount: number) => {
     const newTeams: Team[] = Array.from({ length: teamCount }, (_, i) => ({
       id: i + 1,
@@ -333,15 +364,19 @@ const App: React.FC = () => {
     }));
   };
 
-  // Card reveal functions
+  // Card reveal functions - increment reveal count (0 -> 1 -> 2)
   const handleRevealCard = (teamId: number) => {
-    setGameState(prev => ({
-      ...prev,
-      revealedCards: {
-        ...(prev.revealedCards || {}),
-        [teamId]: true
-      }
-    }));
+    setGameState(prev => {
+      const currentCount = (prev.revealedCards || {})[teamId] || 0;
+      if (currentCount >= 2) return prev; // Already fully revealed
+      return {
+        ...prev,
+        revealedCards: {
+          ...(prev.revealedCards || {}),
+          [teamId]: currentCount + 1
+        }
+      };
+    });
   };
 
   const resetRevealedCards = () => {
@@ -427,6 +462,13 @@ const App: React.FC = () => {
     setCurrentUser(null);
   };
 
+  // Go back to home/login screen without deleting data
+  const handleGoHome = () => {
+    setUserRole(null);
+    setCurrentUser(null);
+    setViewingResult(null);
+  };
+
   // Determine viewing state logic
   const showLogin = !userRole;
 
@@ -435,6 +477,7 @@ const App: React.FC = () => {
       {showLogin ? (
         <LoginScreen
           onAdminStart={handleAdminStart}
+          onCreateRoom={handleCreateRoom}
           onAdminResume={handleAdminResume}
           onDeleteRoom={handleDeleteRoom}
           onSelectRoom={handleSelectRoom}
@@ -470,6 +513,7 @@ const App: React.FC = () => {
                 onTimerStop={handleTimerStop}
                 revealedCards={gameState.revealedCards || {}}
                 onRevealCard={handleRevealCard}
+                onGoHome={handleGoHome}
               />
               {viewingResult && (
                 <RoundResultModal
