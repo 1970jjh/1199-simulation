@@ -539,6 +539,8 @@ const App: React.FC = () => {
                 revealedCards={gameState.revealedCards || {}}
                 onRevealCard={handleRevealCard}
                 onGoHome={handleGoHome}
+                roomCode={roomId}
+                roomName={gameState.roomName || ''}
               />
               {viewingResult && (
                 <RoundResultModal

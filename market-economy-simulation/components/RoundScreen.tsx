@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Team, CardSubmission, MarketType, RoundResult, Player, PendingSubmission, TimerState, RevealedCards } from '../types';
 import { getMarketName, getMarketDescription, getMarketType, TOTAL_ROUNDS, getDetailedRules, GENERAL_RULES } from '../constants';
 import { TeamInputView } from './TeamInputView';
-import { Smartphone, Check, Lock, Trophy, BookOpen, X, TrendingUp, History, Timer, ArrowRight, Play, Square, Users, Sun, Moon, Clock, ChevronDown, Volume2, Home } from 'lucide-react';
+import { SharePopup } from './SharePopup';
+import { Smartphone, Check, Lock, Trophy, BookOpen, X, TrendingUp, History, Timer, ArrowRight, Play, Square, Users, Sun, Moon, Clock, ChevronDown, Volume2, Home, Share2 } from 'lucide-react';
 
 interface RoundScreenProps {
   round: number;
@@ -24,6 +25,8 @@ interface RoundScreenProps {
   revealedCards: RevealedCards;
   onRevealCard: (teamId: number) => void;
   onGoHome: () => void;
+  roomCode: string;
+  roomName: string;
 }
 
 const TIMER_OPTIONS = [1, 2, 3, 4, 5, 10, 15, 20, 30]; // minutes
@@ -47,7 +50,9 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
   onTimerStop,
   revealedCards,
   onRevealCard,
-  onGoHome
+  onGoHome,
+  roomCode,
+  roomName
 }) => {
   // Use synced submissions from Firebase
   const submissions = pendingSubmissions;
@@ -57,6 +62,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
   const [remainingTime, setRemainingTime] = useState(0);
   const [lastAlertedMinute, setLastAlertedMinute] = useState<number | null>(null);
   const [customMinutes, setCustomMinutes] = useState<number>(5);
+  const [showSharePopup, setShowSharePopup] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -280,8 +286,24 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
     <div className="max-w-[1600px] mx-auto p-4 pb-40">
       {rulesModal}
 
+      {/* Share Popup */}
+      {showSharePopup && (
+        <SharePopup
+          roomCode={roomCode}
+          roomName={roomName}
+          onClose={() => setShowSharePopup(false)}
+        />
+      )}
+
       {/* Top right controls for admin */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => setShowSharePopup(true)}
+          className="p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-md border border-blue-400 shadow-lg text-white hover:scale-110 transition-transform"
+          title="참여 링크 공유"
+        >
+          <Share2 size={24} />
+        </button>
         <button
           onClick={onGoHome}
           className="p-3 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-slate-700 shadow-lg text-gray-700 dark:text-white hover:scale-110 transition-transform"
