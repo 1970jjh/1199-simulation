@@ -214,8 +214,21 @@ const App: React.FC = () => {
 
     // Generate 6-digit room code
     const newRoomId = generateRoomId();
+    const now = Date.now();
 
-    // Save to Firebase only (don't enter the room)
+    // 로컬 상태에 즉시 추가 (낙관적 업데이트)
+    const newRoomSummary: GameRoomSummary = {
+      roomId: newRoomId,
+      roomName,
+      phase: GamePhase.PLAYING,
+      currentRound: 1,
+      teamCount,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setGameRooms(prev => [newRoomSummary, ...prev]);
+
+    // Save to Firebase (subscription will also update but local is instant)
     if (useFirebase) {
       saveGameState(newRoomId, newState, true).catch(console.error); // isNew = true
     }
