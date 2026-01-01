@@ -13,6 +13,7 @@ interface TeamInputViewProps {
   isUserMode?: boolean;
   members?: string[];
   isAlreadySubmitted?: boolean; // 이미 제출했는지 여부 (Firebase에서 동기화)
+  submittedCards?: { card1: number; card2: number } | null; // 제출된 카드 값
   toggleTheme?: () => void;
   isDarkMode?: boolean;
 }
@@ -27,6 +28,7 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
   isUserMode = false,
   members = [],
   isAlreadySubmitted = false,
+  submittedCards = null,
   toggleTheme,
   isDarkMode = true
 }) => {
@@ -146,30 +148,48 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
             <div className="w-full max-w-md mb-6 mt-2 shrink-0">
                 <div className="flex justify-center gap-4">
                     {[0, 1].map((slotIdx) => {
+                    // 제출 완료된 경우 submittedCards에서 값을 가져옴
+                    const submittedValue = isSubmitted && submittedCards
+                        ? (slotIdx === 0 ? submittedCards.card1 : submittedCards.card2)
+                        : null;
+
                     const poolIndex = selectedIndices[slotIdx];
-                    const hasCard = poolIndex !== undefined;
-                    const cardValue = hasCard ? INITIAL_CARDS[poolIndex] : null;
+                    const hasSelectedCard = poolIndex !== undefined;
+                    const selectedCardValue = hasSelectedCard ? INITIAL_CARDS[poolIndex] : null;
+
+                    // 제출된 카드가 있으면 그것을, 없으면 선택된 카드를 표시
+                    const displayValue = submittedValue ?? selectedCardValue;
+                    const hasCard = displayValue !== null;
 
                     return (
-                        <div 
+                        <div
                         key={slotIdx}
-                        onClick={() => hasCard && !isSubmitted && toggleCardSelection(poolIndex)}
+                        onClick={() => hasSelectedCard && !isSubmitted && toggleCardSelection(poolIndex)}
                         className={`
                             w-28 h-40 md:w-32 md:h-44 rounded-2xl border-2 flex items-center justify-center text-5xl font-mono font-bold transition-all duration-300 relative overflow-hidden group
-                            ${hasCard 
-                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-100' 
+                            ${hasCard
+                            ? isSubmitted
+                                ? 'bg-gradient-to-br from-green-500 to-emerald-600 border-green-400 text-white shadow-lg shadow-green-500/30 scale-100'
+                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-100'
                             : 'bg-gray-200 dark:bg-slate-800 border-dashed border-gray-400 dark:border-slate-600 text-gray-400 dark:text-slate-600'
                             }
-                            ${!isSubmitted && hasCard ? 'cursor-pointer' : ''}
+                            ${!isSubmitted && hasSelectedCard ? 'cursor-pointer' : ''}
                         `}
                         >
                         {hasCard ? (
                             <>
-                                <div className="absolute top-2 left-3 text-sm opacity-50">CARD</div>
-                                {cardValue}
+                                <div className="absolute top-2 left-3 text-sm opacity-50">
+                                    {isSubmitted ? 'SUBMITTED' : 'CARD'}
+                                </div>
+                                {displayValue}
                                 {!isSubmitted && (
                                     <div className="absolute bottom-2 right-3 text-xs opacity-50 transition-opacity group-hover:opacity-100 bg-black/20 px-2 py-1 rounded">
                                         remove
+                                    </div>
+                                )}
+                                {isSubmitted && (
+                                    <div className="absolute bottom-2 right-3">
+                                        <CheckCircle size={16} className="opacity-70" />
                                     </div>
                                 )}
                             </>

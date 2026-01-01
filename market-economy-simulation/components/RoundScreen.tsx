@@ -266,6 +266,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     isUserMode={true}
                     members={activeTeam.members}
                     isAlreadySubmitted={isAlreadySubmitted}
+                    submittedCards={submissions[activeTeam.id] || null}
                     toggleTheme={toggleTheme}
                     isDarkMode={isDarkMode}
                  />
@@ -307,6 +308,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
           onSubmit={handleTeamSubmit}
           isUserMode={false}
           isAlreadySubmitted={!!submissions[activeTeam.id]}
+          submittedCards={submissions[activeTeam.id] || null}
         />
       )}
 
