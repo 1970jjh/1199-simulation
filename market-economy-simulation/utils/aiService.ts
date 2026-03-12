@@ -69,7 +69,7 @@ export const generateGameAnalysis = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: prompt,
       config: {
         responseMimeType: 'application/json'
@@ -122,7 +122,7 @@ export const generateWinnerPoster = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3.1-flash-image-preview',
       contents: {
         parts: [
           {

@@ -605,7 +605,7 @@ const App: React.FC = () => {
           )}
 
           {gameState.phase === GamePhase.ENDED && (
-            <FinalResults teams={gameState.teams || []} roundHistory={gameState.roundHistory || []} onRestart={handleRestart} />
+            <FinalResults teams={gameState.teams || []} roundHistory={gameState.roundHistory || []} onRestart={handleRestart} roomName={gameState.roomName || 'GameReport'} />
           )}
         </>
       )}

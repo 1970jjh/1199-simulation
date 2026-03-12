@@ -4,20 +4,20 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Trophy, RefreshCw, FileText, Download, Sparkles, Key, Image as ImageIcon, Camera } from 'lucide-react';
 import { generateGameAnalysis, generateWinnerPoster } from '../utils/aiService';
 import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 
 interface FinalResultsProps {
   teams: Team[];
-  roundHistory: any[]; 
+  roundHistory: any[];
   onRestart: () => void;
+  roomName: string;
 }
 
-export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory, onRestart }) => {
+export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory, onRestart, roomName }) => {
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AIAnalysisReport | null>(null);
-  
+
   // Poster Generation State
   const [winnerPhoto, setWinnerPhoto] = useState<string | null>(null);
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
@@ -95,50 +95,135 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
       }
   };
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadHTML = async () => {
     if (!contentRef.current) return;
-    
-    // Hide download buttons for clean PDF
+
+    // Hide control buttons during capture
     const btnSection = document.getElementById('control-buttons');
     if (btnSection) btnSection.style.display = 'none';
 
     try {
-      const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        backgroundColor: '#0f172a', 
-        logging: false,
-        useCORS: true 
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const imgWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      // 1. Capture chart as image (Recharts SVG won't render in standalone HTML)
+      const chartEl = contentRef.current.querySelector('.recharts-responsive-container')?.closest('.lg\\:col-span-2') as HTMLElement | null;
+      let chartImageDataUrl = '';
+      if (chartEl) {
+        const chartCanvas = await html2canvas(chartEl, {
+          scale: 2,
+          backgroundColor: null,
+          logging: false,
+          useCORS: true,
+        });
+        chartImageDataUrl = chartCanvas.toDataURL('image/png');
       }
 
-      pdf.save('market_simulation_report.pdf');
+      // 2. Collect all CSS from document
+      let allCSS = '';
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules)) {
+            allCSS += rule.cssText + '\n';
+          }
+        } catch (_e) {
+          // Cross-origin stylesheets can't be accessed
+        }
+      }
+
+      // 3. Build HTML content sections
+
+      // Winner Banner
+      const bannerEl = contentRef.current.querySelector('.relative.overflow-hidden.bg-gradient-to-r');
+      const bannerHTML = bannerEl ? bannerEl.outerHTML : '';
+
+      // Poster image (if generated) - standalone section without upload UI
+      let posterHTML = '';
+      if (posterUrl) {
+        posterHTML = `
+          <div style="background:white;padding:24px;border-radius:24px;border:1px solid #e5e7eb;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+            <h3 style="font-size:20px;font-weight:bold;font-family:monospace;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:#a855f6;">
+              WINNER POSTER
+            </h3>
+            <div style="border-radius:12px;overflow:hidden;border:4px solid rgba(234,179,8,0.3);box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+              <img src="${posterUrl}" style="width:100%;height:auto;display:block;" />
+            </div>
+          </div>
+        `;
+      }
+
+      // Leaderboard table
+      const leaderboardEl = contentRef.current.querySelector('.lg\\:col-span-1');
+      const leaderboardHTML = leaderboardEl ? leaderboardEl.outerHTML : '';
+
+      // Chart as image
+      const chartHTML = chartImageDataUrl
+        ? `<div class="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl border border-gray-100 dark:border-slate-800">
+             <h3 style="font-size:20px;font-weight:bold;font-family:monospace;margin-bottom:24px;color:#9ca3af;">ASSET GROWTH ANALYSIS</h3>
+             <img src="${chartImageDataUrl}" style="width:100%;height:auto;border-radius:8px;" />
+           </div>`
+        : '';
+
+      // AI Analysis section
+      const analysisEl = contentRef.current.querySelector('.border-purple-500\\/20');
+      const analysisHTML = analysisEl ? analysisEl.outerHTML : '';
+
+      // 4. Detect dark mode
+      const isDark = document.documentElement.classList.contains('dark');
+
+      // 5. Build complete standalone HTML
+      const htmlContent = `<!DOCTYPE html>
+<html lang="ko" class="${isDark ? 'dark' : ''}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${roomName} - Game Report</title>
+  <style>
+    ${allCSS}
+    /* Ensure dark mode works in standalone file */
+    @media (prefers-color-scheme: dark) {
+      html:not(.light) { color-scheme: dark; }
+    }
+    /* Remove print:hidden for downloaded file */
+    .print\\:hidden { display: block !important; }
+    /* Ensure images are contained */
+    img { max-width: 100%; height: auto; }
+    /* Fix body background */
+    body { margin: 0; padding: 0; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-white">
+  <div class="max-w-7xl mx-auto space-y-8 p-4 md:p-8" style="background:inherit;">
+
+    ${bannerHTML}
+
+    ${posterHTML}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      ${leaderboardHTML}
+      ${chartHTML}
+    </div>
+
+    ${analysisHTML}
+
+  </div>
+</body>
+</html>`;
+
+      // 6. Download
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      a.href = url;
+      a.download = `${roomName}${dateStr}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (e) {
-      console.error("PDF Export failed", e);
-      alert("Failed to create PDF");
+      console.error("HTML Export failed", e);
+      alert("Failed to create HTML report");
     } finally {
-        if (btnSection) btnSection.style.display = 'flex';
+      if (btnSection) btnSection.style.display = 'flex';
     }
   };
 
@@ -146,7 +231,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 text-gray-900 dark:text-white">
       {/* Top Controls */}
       <div className="max-w-7xl mx-auto flex justify-end gap-2 mb-4 print:hidden">
-         <button 
+         <button
            onClick={() => setShowKeyInput(!showKeyInput)}
            className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-white dark:bg-slate-800 rounded-lg shadow border border-gray-200 dark:border-slate-700"
          >
@@ -158,8 +243,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm print:hidden">
            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl border border-gray-200 dark:border-slate-700 w-full max-w-md">
               <h3 className="text-lg font-bold mb-4">Enter Google Gemini API Key</h3>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="AIzaSy..."
@@ -174,11 +259,11 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
       )}
 
       <div ref={contentRef} className="max-w-7xl mx-auto space-y-8 bg-gray-50 dark:bg-slate-950 p-4">
-        
+
         {/* Winner Banner */}
         <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 to-blue-900 rounded-3xl p-10 text-white shadow-2xl text-center border border-white/10 print:break-inside-avoid">
           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-          
+
           <div className="relative z-10 flex flex-col items-center">
             <div className="mb-4 p-4 bg-yellow-500/20 rounded-full backdrop-blur-md border border-yellow-500/50">
                 <Trophy size={48} className="text-yellow-400" />
@@ -215,7 +300,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                              <img src={winnerPhoto} alt="Preview" className="w-full h-full object-cover" />
                         </div>
                     )}
-                    <button 
+                    <button
                         onClick={handleGeneratePoster}
                         disabled={!winnerPhoto || isGeneratingPoster}
                         className={`
@@ -226,13 +311,13 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                         {isGeneratingPoster ? 'Generating AI Art...' : 'Generate Cinematic Poster'}
                     </button>
                 </div>
-                
+
                 {posterUrl && (
                     <div className="flex-1 animate-in zoom-in duration-500">
                         <div className="relative group rounded-xl overflow-hidden shadow-2xl border-4 border-yellow-500/30">
                             <img src={posterUrl} alt="Winner Poster" className="w-full h-auto" />
-                            <a 
-                                href={posterUrl} 
+                            <a
+                                href={posterUrl}
                                 download={`winner_poster_${winner.name}.png`}
                                 className="absolute bottom-4 right-4 bg-white text-black px-4 py-2 rounded-lg font-bold opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                             >
@@ -258,8 +343,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                             <td className="py-4 px-6">
                                 <span className={`
                                 inline-flex items-center justify-center w-8 h-8 rounded-lg font-bold
-                                ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400' : 
-                                    index === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' : 
+                                ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400' :
+                                    index === 1 ? 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' :
                                     index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400' : 'text-gray-400'}
                                 `}>
                                 {index + 1}
@@ -293,23 +378,23 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
                         <XAxis dataKey="name" stroke="#9ca3af" tick={{fontSize: 12}} />
                         <YAxis stroke="#9ca3af" tick={{fontSize: 12}} />
-                        <Tooltip 
-                            contentStyle={{ 
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
                                 color: '#fff',
-                                borderRadius: '12px', 
+                                borderRadius: '12px',
                                 border: '1px solid rgba(255,255,255,0.1)',
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' 
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
                             }}
                         />
                         {teams.map((t, i) => (
-                            <Area 
+                            <Area
                             key={t.id}
-                            type="monotone" 
-                            dataKey={t.name} 
-                            stroke={colors[i % colors.length]} 
-                            fillOpacity={1} 
-                            fill={`url(#color${t.id})`} 
+                            type="monotone"
+                            dataKey={t.name}
+                            stroke={colors[i % colors.length]}
+                            fillOpacity={1}
+                            fill={`url(#color${t.id})`}
                             strokeWidth={3}
                             />
                         ))}
@@ -370,7 +455,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
       </div>
 
       <div id="control-buttons" className="flex flex-col md:flex-row justify-center items-center gap-4 py-8 max-w-7xl mx-auto print:hidden">
-          <button 
+          <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing}
                 className={`
@@ -389,17 +474,15 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                 )}
             </button>
 
-            {analysis && (
-                <button 
-                    onClick={handleDownloadPDF}
-                    className="bg-gray-800 dark:bg-slate-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-gray-700 dark:hover:bg-slate-600 transition shadow-lg flex items-center gap-3"
-                >
-                    <Download size={20} />
-                    DOWNLOAD REPORT PDF
-                </button>
-            )}
+            <button
+                onClick={handleDownloadHTML}
+                className="bg-gray-800 dark:bg-slate-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-gray-700 dark:hover:bg-slate-600 transition shadow-lg flex items-center gap-3"
+            >
+                <Download size={20} />
+                DOWNLOAD REPORT HTML
+            </button>
 
-            <button 
+            <button
                 onClick={onRestart}
                 className="bg-white dark:bg-slate-800 text-gray-900 dark:text-white px-8 py-4 rounded-xl font-bold hover:bg-gray-100 dark:hover:bg-slate-700 transition shadow-lg border border-gray-200 dark:border-slate-700 flex items-center gap-3"
             >
