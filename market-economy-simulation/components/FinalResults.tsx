@@ -89,7 +89,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
           setPosterUrl(poster);
       } catch (e) {
           console.error(e);
-          alert("Failed to generate poster. Ensure your API key supports Gemini 2.5/Pro Vision.");
+          alert("Failed to generate poster. Ensure your API key supports Gemini image generation. Error: " + (e instanceof Error ? e.message : String(e)));
       } finally {
           setIsGeneratingPoster(false);
       }

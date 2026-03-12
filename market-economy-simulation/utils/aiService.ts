@@ -123,35 +123,41 @@ export const generateWinnerPoster = async (
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-image-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
+              },
             },
-          },
-          {
-            text: prompt,
-          },
-        ],
-      },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
       config: {
+        responseModalities: ['image', 'text'],
         imageConfig: {
-            aspectRatio: "3:4", 
+            aspectRatio: "3:4",
         }
       }
     });
 
+    // Try candidates structure first
     if (response.candidates?.[0]?.content?.parts) {
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData && part.inlineData.data) {
-                return `data:image/png;base64,${part.inlineData.data}`;
+                const imgMime = part.inlineData.mimeType || 'image/png';
+                return `data:${imgMime};base64,${part.inlineData.data}`;
             }
         }
     }
-    
-    throw new Error("No image generated in response");
+
+    throw new Error("No image generated in response. Raw: " + JSON.stringify(response).substring(0, 200));
   } catch (error) {
     console.error("Poster Generation Error:", error);
     throw error;
