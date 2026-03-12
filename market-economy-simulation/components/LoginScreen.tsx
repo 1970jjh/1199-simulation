@@ -47,7 +47,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   // Admin Inputs
   const [adminPassword, setAdminPassword] = useState('');
   const [newRoomName, setNewRoomName] = useState('');
-  const [teamCount, setTeamCount] = useState(3);
+  const [teamCount, setTeamCount] = useState(2);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -524,14 +524,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                         <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Number of Teams: <span className="text-purple-500">{teamCount}</span></label>
                                         <input
                                             type="range"
-                                            min="3"
+                                            min="2"
                                             max="20"
                                             value={teamCount}
                                             onChange={(e) => setTeamCount(parseInt(e.target.value))}
                                             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
                                         />
                                         <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                            <span>3 Teams</span>
+                                            <span>2 Teams</span>
                                             <span>20 Teams</span>
                                         </div>
                                     </div>
