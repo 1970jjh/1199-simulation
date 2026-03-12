@@ -1,4 +1,5 @@
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { initializeFirebase } from './firebase';
 
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
 
@@ -12,6 +13,8 @@ export interface AdminInfo {
  * Google 로그인 (Firebase Auth)
  */
 export const googleSignIn = async (): Promise<{ email: string; photoURL?: string }> => {
+  // Firebase 앱이 초기화되었는지 확인
+  initializeFirebase();
   const auth = getAuth();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
