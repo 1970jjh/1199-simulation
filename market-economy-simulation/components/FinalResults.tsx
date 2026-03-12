@@ -457,55 +457,53 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                          </div>
                          <div className="flex-[2]">
                             <h4 className="font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide text-sm">Final Conclusion (최종 결론)</h4>
-                            <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap">"{analysis.conclusion}"</p>
+                            <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap mb-6">"{analysis.conclusion}"</p>
+
+                            {/* 교육적 의미 + 역량 테이블 */}
+                            <h4 className="font-bold text-cyan-500 dark:text-cyan-400 mb-2 uppercase tracking-wide text-sm">Educational Significance (교육적 의미)</h4>
+                            <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed mb-4">
+                              이 시뮬레이션은 시장 경제의 3단계 구조(초기 형성 시장 → 완전 경쟁 시장 → 독점적 경쟁 시장)를 체험하게 하는 프로그램입니다. 기업교육 측면에서 다음과 같은 핵심 역량을 훈련할 수 있습니다:
+                            </p>
+                            <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-gray-100 dark:bg-slate-800">
+                                    <th className="text-left px-4 py-3 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-slate-700">역량 영역</th>
+                                    <th className="text-left px-4 py-3 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-slate-700">시뮬레이션에서의 체험</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="text-gray-600 dark:text-gray-400">
+                                  <tr className="border-b border-gray-100 dark:border-slate-800">
+                                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">데이터 기반 의사결정</td>
+                                    <td className="px-4 py-3">시장의 수요·공급 변화를 수치로 읽고 전략 수립</td>
+                                  </tr>
+                                  <tr className="border-b border-gray-100 dark:border-slate-800">
+                                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">리스크 관리</td>
+                                    <td className="px-4 py-3">벌점, 손실 가능성을 고려한 투자 판단</td>
+                                  </tr>
+                                  <tr className="border-b border-gray-100 dark:border-slate-800">
+                                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">전략적 유연성</td>
+                                    <td className="px-4 py-3">시장 구조 변화에 따른 전략 전환 능력</td>
+                                  </tr>
+                                  <tr className="border-b border-gray-100 dark:border-slate-800">
+                                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">팀 협업과 소통</td>
+                                    <td className="px-4 py-3">제한된 시간 내 팀원 간 합의 도출</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">경쟁 환경 이해</td>
+                                    <td className="px-4 py-3">상대팀 행동을 고려한 게임이론적 사고</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
                          </div>
                     </div>
 
+                    {/* 토의 질문 - 별도 섹션 */}
                     <div className="mt-8 pt-8 border-t border-gray-100 dark:border-slate-800">
-                      <h4 className="font-bold text-amber-500 dark:text-amber-400 mb-4 uppercase tracking-wide text-sm flex items-center gap-2">
+                      <h4 className="font-bold text-amber-500 dark:text-amber-400 mb-2 uppercase tracking-wide text-sm flex items-center gap-2">
                         💬 Debriefing Questions (팀 토의 질문)
                       </h4>
-
-                      {/* 게임의 교육적 의미 */}
-                      <div className="mb-6">
-                        <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed mb-4">
-                          이 시뮬레이션은 시장 경제의 3단계 구조(초기 형성 시장 → 완전 경쟁 시장 → 독점적 경쟁 시장)를 체험하게 하는 프로그램입니다. 기업교육 측면에서 다음과 같은 핵심 역량을 훈련할 수 있습니다:
-                        </p>
-                        <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700 mb-6">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="bg-gray-100 dark:bg-slate-800">
-                                <th className="text-left px-4 py-3 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-slate-700">역량 영역</th>
-                                <th className="text-left px-4 py-3 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-slate-700">시뮬레이션에서의 체험</th>
-                              </tr>
-                            </thead>
-                            <tbody className="text-gray-600 dark:text-gray-400">
-                              <tr className="border-b border-gray-100 dark:border-slate-800">
-                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">데이터 기반 의사결정</td>
-                                <td className="px-4 py-3">시장의 수요·공급 변화를 수치로 읽고 전략 수립</td>
-                              </tr>
-                              <tr className="border-b border-gray-100 dark:border-slate-800">
-                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">리스크 관리</td>
-                                <td className="px-4 py-3">벌점, 손실 가능성을 고려한 투자 판단</td>
-                              </tr>
-                              <tr className="border-b border-gray-100 dark:border-slate-800">
-                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">전략적 유연성</td>
-                                <td className="px-4 py-3">시장 구조 변화에 따른 전략 전환 능력</td>
-                              </tr>
-                              <tr className="border-b border-gray-100 dark:border-slate-800">
-                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">팀 협업과 소통</td>
-                                <td className="px-4 py-3">제한된 시간 내 팀원 간 합의 도출</td>
-                              </tr>
-                              <tr>
-                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">경쟁 환경 이해</td>
-                                <td className="px-4 py-3">상대팀 행동을 고려한 게임이론적 사고</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* 토의 질문 */}
                       <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">게임 경험을 실무와 연결하여 팀원들과 함께 토의해 보세요.</p>
                       <div className="grid gap-3">
                         {[
