@@ -507,11 +507,11 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                       <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">게임 경험을 실무와 연결하여 팀원들과 함께 토의해 보세요.</p>
                       <div className="grid gap-3">
                         {[
-                          '우리 팀의 의사결정은 데이터 기반이었나, 감(感) 기반이었나?',
-                          '시장 환경이 바뀌었을 때, 전략을 바꾸는 데 얼마나 걸렸나?',
-                          '실제 업무에서 이런 \'전환 지점\'을 놓친 경험이 있는가?',
-                          '팀 내에서 반대 의견이 나왔을 때 어떻게 처리했는가?',
-                          '상대팀의 행동을 얼마나 고려했는가? (경쟁사 분석)',
+                          '(데이터 기반 의사결정) 우리 팀의 의사결정은 데이터 기반이었나, 감(感) 기반이었나요? 우리팀은 어떠한 과정을 통해 의사결정하였나요?',
+                          '(전략적 유연성) 시장 환경(게임의 룰)이 바뀌었을 때, 우리 팀의 전략도 바뀌었나요? 각 시장(초기형성, 완전경쟁, 독점적 경쟁)마다 우리 팀의 전략은 무엇이었나요?',
+                          '(리스크 관리) 실제 업무에서 이러한 \'전환/변화 지점\'을 놓친 경험이 있나요?',
+                          '(팀 협업과 소통) 팀 의사결정시, 팀 내 반대 의견이 나왔을 때 우리 팀은 어떻게 합의를 이루었나요?',
+                          '(경쟁 환경 이해) 팀 의사결정시, 상대팀의 행동을 얼마나, 어떻게 고려하여 결정하였나요? (경쟁사 분석)',
                         ].map((question, idx) => (
                           <div key={idx} className="flex items-start gap-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
                             <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500/20 text-amber-500 font-bold text-sm flex items-center justify-center">
