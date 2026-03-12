@@ -89,7 +89,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
           setPosterUrl(poster);
       } catch (e) {
           console.error(e);
-          alert("Failed to generate poster. Ensure your API key supports Gemini 2.5/Pro Vision.");
+          alert("Failed to generate poster. Ensure your API key supports Gemini image generation. Error: " + (e instanceof Error ? e.message : String(e)));
       } finally {
           setIsGeneratingPoster(false);
       }
@@ -430,9 +430,21 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                         <h4 className="font-bold text-gray-900 dark:text-white mb-4 text-lg">Team Strategy Critique (팀별 전략 평가)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {analysis.teamStrategies.map((t, i) => (
-                                <div key={i} className="flex gap-4 p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50">
-                                    <div className="font-mono font-bold text-gray-500 shrink-0">{t.teamName}</div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{t.analysis}</div>
+                                <div key={i} className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50">
+                                    <div className="font-mono font-bold text-gray-500 mb-2">{t.teamName}</div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap mb-3">{t.analysis}</div>
+                                    {t.strength && (
+                                      <div className="text-sm p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 mb-2">
+                                        <span className="font-bold text-green-600 dark:text-green-400">👍 칭찬할 점: </span>
+                                        <span className="text-gray-700 dark:text-gray-300">{t.strength}</span>
+                                      </div>
+                                    )}
+                                    {t.growthPoint && (
+                                      <div className="text-sm p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
+                                        <span className="font-bold text-blue-600 dark:text-blue-400">🚀 성장 포인트: </span>
+                                        <span className="text-gray-700 dark:text-gray-300">{t.growthPoint}</span>
+                                      </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -448,6 +460,25 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                             <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap">"{analysis.conclusion}"</p>
                          </div>
                     </div>
+
+                    {analysis.debriefingQuestions && analysis.debriefingQuestions.length > 0 && (
+                      <div className="mt-8 pt-8 border-t border-gray-100 dark:border-slate-800">
+                        <h4 className="font-bold text-amber-500 dark:text-amber-400 mb-4 uppercase tracking-wide text-sm flex items-center gap-2">
+                          💬 Debriefing Questions (팀 토의 질문)
+                        </h4>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">게임 경험을 실무와 연결하여 팀원들과 함께 토의해 보세요.</p>
+                        <div className="grid gap-3">
+                          {analysis.debriefingQuestions.map((question, idx) => (
+                            <div key={idx} className="flex items-start gap-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500/20 text-amber-500 font-bold text-sm flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{question}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
             </div>
         )}

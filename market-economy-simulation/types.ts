@@ -87,9 +87,12 @@ export interface AIAnalysisReport {
   teamStrategies: {
     teamName: string;
     analysis: string;
+    strength: string;
+    growthPoint: string;
   }[];
   mvpTeam: string;
   conclusion: string;
+  debriefingQuestions: string[];
 }
 
 // 게임룸 요약 정보 (목록 표시용)

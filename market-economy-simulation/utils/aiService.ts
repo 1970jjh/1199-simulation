@@ -56,14 +56,22 @@ export const generateGameAnalysis = async (
         }
       ],
       "teamStrategies": [
-        { 
-          "teamName": "Team X", 
-          "analysis": "Critique of their strategy. Did they hoard high cards too early? Did they play too passively? **Provide at least 3-4 sentences of deep feedback per team.** (Korean)" 
+        {
+          "teamName": "Team X",
+          "analysis": "Critique of their strategy. Did they hoard high cards too early? Did they play too passively? **Provide at least 3-4 sentences of deep feedback per team.** (Korean)",
+          "strength": "칭찬할 점: What did this team do well? Highlight 1-2 specific positive strategic decisions or behaviors. Be encouraging and specific. (Korean)",
+          "growthPoint": "성장 포인트: What should this team improve? Provide 1-2 actionable growth areas connecting game behavior to real business skills. (Korean)"
         }
         ... for all teams
       ],
       "mvpTeam": "Name of the team with the best strategy. **This section should be very detailed (approx 150-200 words).** Explain WHY they are the MVP. Was it math? Psychology? Luck? Negotiation? (Korean)",
-      "conclusion": "Final thoughts on the simulation. What economic lessons should the participants take away regarding supply/demand and game theory? (Korean)"
+      "conclusion": "Final thoughts on the simulation. What economic lessons should the participants take away regarding supply/demand and game theory? (Korean)",
+      "debriefingQuestions": [
+        "Generate exactly 5 thought-provoking debriefing discussion questions in Korean for participants to discuss after the game.",
+        "Questions should connect the game experience to real-world business/organizational contexts.",
+        "Cover themes like: data-driven decision making, strategy pivoting under changing environments, team communication, competitor analysis, and risk management.",
+        "Each question should be 1-2 sentences, practical and reflective. (Korean)"
+      ]
     }
   `;
 
@@ -123,35 +131,41 @@ export const generateWinnerPoster = async (
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-image-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
+              },
             },
-          },
-          {
-            text: prompt,
-          },
-        ],
-      },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
       config: {
+        responseModalities: ['image', 'text'],
         imageConfig: {
-            aspectRatio: "3:4", 
+            aspectRatio: "3:4",
         }
       }
     });
 
+    // Try candidates structure first
     if (response.candidates?.[0]?.content?.parts) {
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData && part.inlineData.data) {
-                return `data:image/png;base64,${part.inlineData.data}`;
+                const imgMime = part.inlineData.mimeType || 'image/png';
+                return `data:${imgMime};base64,${part.inlineData.data}`;
             }
         }
     }
-    
-    throw new Error("No image generated in response");
+
+    throw new Error("No image generated in response. Raw: " + JSON.stringify(response).substring(0, 200));
   } catch (error) {
     console.error("Poster Generation Error:", error);
     throw error;
