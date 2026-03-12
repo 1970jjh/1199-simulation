@@ -92,7 +92,7 @@ export interface AIAnalysisReport {
   }[];
   mvpTeam: string;
   conclusion: string;
-  debriefingQuestions: string[];
+  debriefingQuestions?: string[];
 }
 
 // 게임룸 요약 정보 (목록 표시용)
