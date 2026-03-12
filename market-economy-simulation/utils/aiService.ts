@@ -63,7 +63,13 @@ export const generateGameAnalysis = async (
         ... for all teams
       ],
       "mvpTeam": "Name of the team with the best strategy. **This section should be very detailed (approx 150-200 words).** Explain WHY they are the MVP. Was it math? Psychology? Luck? Negotiation? (Korean)",
-      "conclusion": "Final thoughts on the simulation. What economic lessons should the participants take away regarding supply/demand and game theory? (Korean)"
+      "conclusion": "Final thoughts on the simulation. What economic lessons should the participants take away regarding supply/demand and game theory? (Korean)",
+      "debriefingQuestions": [
+        "Generate exactly 5 thought-provoking debriefing discussion questions in Korean for participants to discuss after the game.",
+        "Questions should connect the game experience to real-world business/organizational contexts.",
+        "Cover themes like: data-driven decision making, strategy pivoting under changing environments, team communication, competitor analysis, and risk management.",
+        "Each question should be 1-2 sentences, practical and reflective. (Korean)"
+      ]
     }
   `;
 

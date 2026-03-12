@@ -448,6 +448,25 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                             <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap">"{analysis.conclusion}"</p>
                          </div>
                     </div>
+
+                    {analysis.debriefingQuestions && analysis.debriefingQuestions.length > 0 && (
+                      <div className="mt-8 pt-8 border-t border-gray-100 dark:border-slate-800">
+                        <h4 className="font-bold text-amber-500 dark:text-amber-400 mb-4 uppercase tracking-wide text-sm flex items-center gap-2">
+                          💬 Debriefing Questions (팀 토의 질문)
+                        </h4>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">게임 경험을 실무와 연결하여 팀원들과 함께 토의해 보세요.</p>
+                        <div className="grid gap-3">
+                          {analysis.debriefingQuestions.map((question, idx) => (
+                            <div key={idx} className="flex items-start gap-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg p-4">
+                              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-500/20 text-amber-500 font-bold text-sm flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{question}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
             </div>
         )}
