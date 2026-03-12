@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Users, Shield, Smartphone, ArrowRight, Play, Sun, Moon, Trash2, LogIn, Hash, Copy, Check, Plus, ChevronRight } from 'lucide-react';
+import { Users, Shield, Smartphone, ArrowRight, Play, Sun, Moon, Trash2, LogIn, Hash, Copy, Check, Plus, ChevronRight, LogOut } from 'lucide-react';
 import { GameRoomSummary, GamePhase } from '../types';
+import { AdminInfo, googleSignIn, googleSignOut, verifyAdminEmail, logAdminActivity } from '../utils/adminAuth';
 
 interface LoginScreenProps {
   onAdminStart: (roomName: string, teamCount: number) => void;
@@ -10,12 +11,15 @@ interface LoginScreenProps {
   onSelectRoom: (roomId: string) => void;
   onUserJoin: (name: string, teamId: number) => void;
   onJoinByCode: (code: string) => Promise<boolean>;
-  existingTeams: number; // If 0, room doesn't exist
+  existingTeams: number;
   roomName: string | null;
   roomCode: string;
   gameRooms: GameRoomSummary[];
   toggleTheme: () => void;
   isDarkMode: boolean;
+  adminInfo: AdminInfo | null;
+  onAdminLogin: (info: AdminInfo) => void;
+  onAdminLogout: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -31,11 +35,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   roomCode,
   gameRooms,
   toggleTheme,
-  isDarkMode
+  isDarkMode,
+  adminInfo,
+  onAdminLogin,
+  onAdminLogout
 }) => {
   const [mode, setMode] = useState<'USER' | 'ADMIN'>('USER');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   // User Inputs
   const [userName, setUserName] = useState('');
@@ -45,44 +51,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [selectedUserRoom, setSelectedUserRoom] = useState<GameRoomSummary | null>(null);
 
   // Admin Inputs
-  const [adminPassword, setAdminPassword] = useState('');
   const [newRoomName, setNewRoomName] = useState('');
   const [teamCount, setTeamCount] = useState(2);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const handleAdminLogin = () => {
-    if (adminPassword !== '6749467') {
-      setError('Invalid Password');
-      return;
-    }
+  const isAdminLoggedIn = !!adminInfo;
+
+  const handleGoogleLogin = async () => {
     setError('');
-    setIsAdminLoggedIn(true);
+    setIsGoogleLoading(true);
+    try {
+      const { email, photoURL } = await googleSignIn();
+      // 스프레드시트에서 이메일 검증
+      const verification = await verifyAdminEmail(email);
+      if (verification.success && verification.name) {
+        onAdminLogin({ email, name: verification.name, photoURL });
+      } else {
+        await googleSignOut();
+        setError(verification.error || '인증에 실패했습니다.');
+      }
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        setError('구글 로그인에 실패했습니다.');
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (adminInfo) {
+      await logAdminActivity(adminInfo.email, adminInfo.name, 'LOGOUT', '관리자 로그아웃');
+      await googleSignOut();
+    }
+    onAdminLogout();
   };
 
   const handleAdminSubmit = async () => {
-    if (adminPassword !== '6749467') {
-      setError('Invalid Password');
-      return;
-    }
-
-    // Create new room
     if (!newRoomName) {
         setError('Enter Room Name');
         return;
     }
 
-    // Create room and wait for Firebase save
     setIsCreating(true);
     setError('');
 
     try {
       const success = await onCreateRoom(newRoomName, teamCount);
       if (success) {
+        // 룸 생성 로그
+        if (adminInfo) {
+          logAdminActivity(adminInfo.email, adminInfo.name, 'CREATE_ROOM', `방 생성: ${newRoomName} (${teamCount}팀)`);
+        }
         setNewRoomName('');
         setShowCreateForm(false);
-        // Room will appear in the list via Firebase subscription
       } else {
         setError('방 생성에 실패했습니다. 다시 시도해주세요.');
       }
@@ -94,27 +119,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   const handleAdminDelete = (targetRoomId?: string) => {
-      if (adminPassword !== '6749467') {
-        setError('Invalid Password');
-        return;
-      }
       const roomToDelete = targetRoomId || roomCode;
       const roomInfo = gameRooms.find(r => r.roomId === roomToDelete);
       const roomDisplayName = roomInfo ? roomInfo.roomName : roomToDelete;
 
-      if (window.confirm(`Are you sure you want to delete "${roomDisplayName}"? All data will be lost.`)) {
-          onDeleteRoom(targetRoomId);
-          if (!targetRoomId || targetRoomId === roomCode) {
-            setAdminPassword('');
+      if (window.confirm(`"${roomDisplayName}" 방을 삭제하시겠습니까? 모든 데이터가 삭제됩니다.`)) {
+          // 룸 삭제 로그
+          if (adminInfo) {
+            logAdminActivity(adminInfo.email, adminInfo.name, 'DELETE_ROOM', `방 삭제: ${roomDisplayName} (#${roomToDelete})`);
           }
+          onDeleteRoom(targetRoomId);
           setError('');
       }
   };
 
   const handleEnterRoom = (targetRoomId: string) => {
-    if (adminPassword !== '6749467') {
-      setError('Invalid Password');
-      return;
+    const roomInfo = gameRooms.find(r => r.roomId === targetRoomId);
+    // 룸 입장 로그
+    if (adminInfo) {
+      logAdminActivity(adminInfo.email, adminInfo.name, 'ENTER_ROOM', `방 입장: ${roomInfo?.roomName || targetRoomId} (#${targetRoomId})`);
     }
     onSelectRoom(targetRoomId);
   };
@@ -395,25 +418,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </>
             ) : (
                 <>
-                    {/* Admin Login Form - Show first */}
+                    {/* Admin Login Form - Google Sign-In */}
                     {!isAdminLoggedIn ? (
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Admin Password</label>
-                                <input
-                                    type="password"
-                                    value={adminPassword}
-                                    onChange={(e) => setAdminPassword(e.target.value)}
-                                    placeholder="Enter password"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
-                                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:text-white"
-                                />
+                            <div className="text-center py-2">
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    등록된 관리자 Google 계정으로 로그인하세요
+                                </p>
                             </div>
                             <button
-                                onClick={handleAdminLogin}
-                                className="w-full py-4 mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center justify-center gap-2"
+                                onClick={handleGoogleLogin}
+                                disabled={isGoogleLoading}
+                                className="w-full py-4 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 font-bold rounded-xl shadow-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <LogIn size={20} /> LOGIN
+                                {isGoogleLoading ? (
+                                    <span className="animate-spin">...</span>
+                                ) : (
+                                    <>
+                                        <svg width="20" height="20" viewBox="0 0 48 48">
+                                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                                        </svg>
+                                        Google 계정으로 로그인
+                                    </>
+                                )}
                             </button>
                         </div>
                     ) : (
@@ -421,16 +451,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                             {/* Logged in indicator */}
                             <div className="flex items-center justify-between py-2 px-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
                                 <span className="text-sm font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
-                                    <Check size={16} /> Admin Logged In
+                                    {adminInfo?.photoURL ? (
+                                      <img src={adminInfo.photoURL} alt="" className="w-6 h-6 rounded-full" />
+                                    ) : (
+                                      <Check size={16} />
+                                    )}
+                                    {adminInfo?.name || 'Admin'}
                                 </span>
                                 <button
-                                    onClick={() => {
-                                        setIsAdminLoggedIn(false);
-                                        setAdminPassword('');
-                                    }}
-                                    className="text-xs text-gray-500 hover:text-red-500 transition"
+                                    onClick={handleLogout}
+                                    className="text-xs text-gray-500 hover:text-red-500 transition flex items-center gap-1"
                                 >
-                                    Logout
+                                    <LogOut size={12} /> Logout
                                 </button>
                             </div>
 

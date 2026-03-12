@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GamePhase, GameState, Team, CardSubmission, RoundResult, UserRole, Player, PendingSubmission, TimerState, RevealedCards, GameRoomSummary } from './types';
+import { AdminInfo } from './utils/adminAuth';
 import { TOTAL_ROUNDS, INITIAL_CARDS } from './constants';
 import { calculateRoundResults } from './utils/gameLogic';
 import { LoginScreen } from './components/LoginScreen';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Player | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [roomId, setRoomId] = useState<string>('');
+  const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null);
 
   // 다중 게임룸 목록 (관리자용)
   const [gameRooms, setGameRooms] = useState<GameRoomSummary[]>([]);
@@ -566,6 +568,9 @@ const App: React.FC = () => {
           gameRooms={gameRooms}
           toggleTheme={toggleTheme}
           isDarkMode={isDarkMode}
+          adminInfo={adminInfo}
+          onAdminLogin={(info: AdminInfo) => setAdminInfo(info)}
+          onAdminLogout={() => setAdminInfo(null)}
         />
       ) : (
         <>
