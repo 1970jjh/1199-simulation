@@ -56,9 +56,11 @@ export const generateGameAnalysis = async (
         }
       ],
       "teamStrategies": [
-        { 
-          "teamName": "Team X", 
-          "analysis": "Critique of their strategy. Did they hoard high cards too early? Did they play too passively? **Provide at least 3-4 sentences of deep feedback per team.** (Korean)" 
+        {
+          "teamName": "Team X",
+          "analysis": "Critique of their strategy. Did they hoard high cards too early? Did they play too passively? **Provide at least 3-4 sentences of deep feedback per team.** (Korean)",
+          "strength": "칭찬할 점: What did this team do well? Highlight 1-2 specific positive strategic decisions or behaviors. Be encouraging and specific. (Korean)",
+          "growthPoint": "성장 포인트: What should this team improve? Provide 1-2 actionable growth areas connecting game behavior to real business skills. (Korean)"
         }
         ... for all teams
       ],

@@ -430,9 +430,21 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ teams, roundHistory,
                         <h4 className="font-bold text-gray-900 dark:text-white mb-4 text-lg">Team Strategy Critique (팀별 전략 평가)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {analysis.teamStrategies.map((t, i) => (
-                                <div key={i} className="flex gap-4 p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50">
-                                    <div className="font-mono font-bold text-gray-500 shrink-0">{t.teamName}</div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{t.analysis}</div>
+                                <div key={i} className="p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50">
+                                    <div className="font-mono font-bold text-gray-500 mb-2">{t.teamName}</div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap mb-3">{t.analysis}</div>
+                                    {t.strength && (
+                                      <div className="text-sm p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 mb-2">
+                                        <span className="font-bold text-green-600 dark:text-green-400">👍 칭찬할 점: </span>
+                                        <span className="text-gray-700 dark:text-gray-300">{t.strength}</span>
+                                      </div>
+                                    )}
+                                    {t.growthPoint && (
+                                      <div className="text-sm p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
+                                        <span className="font-bold text-blue-600 dark:text-blue-400">🚀 성장 포인트: </span>
+                                        <span className="text-gray-700 dark:text-gray-300">{t.growthPoint}</span>
+                                      </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

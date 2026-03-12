@@ -87,6 +87,8 @@ export interface AIAnalysisReport {
   teamStrategies: {
     teamName: string;
     analysis: string;
+    strength: string;
+    growthPoint: string;
   }[];
   mvpTeam: string;
   conclusion: string;
