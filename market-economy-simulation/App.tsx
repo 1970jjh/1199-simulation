@@ -45,9 +45,13 @@ const App: React.FC = () => {
   const [isRoundComplete, setIsRoundComplete] = useState<boolean>(false);
 
   // Ref to track if update is from Firebase (to prevent save loop)
+  // Cleared in the save effect itself, not via setTimeout, to avoid race conditions
   const isFromFirebase = useRef(false);
   // Ref to track if pending submission update is in progress (skip full save)
+  // Cleared in the save effect itself, not via setTimeout
   const isPendingSubmissionUpdate = useRef(false);
+  // Ref to track if room was deleted externally (prevents re-saving)
+  const isRoomDeleted = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
 
@@ -133,6 +137,7 @@ const App: React.FC = () => {
     }
 
     // Subscribe to Firebase changes
+    isRoomDeleted.current = false;
     unsubscribeRef.current = subscribeToGameState(roomId, (newState) => {
       if (newState) {
         isFromFirebase.current = true;
@@ -140,11 +145,30 @@ const App: React.FC = () => {
         setIsRoundComplete(checkRoundComplete(newState));
         // Also update localStorage for offline support
         localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(newState));
-
-        // Reset flag after state update
-        setTimeout(() => {
-          isFromFirebase.current = false;
-        }, 100);
+        // Note: isFromFirebase flag is cleared in the save effect, not here via setTimeout.
+        // This prevents the race condition where setTimeout fires before React re-renders,
+        // causing stale state to be saved back to Firebase.
+      } else {
+        // Room was deleted from Firebase by admin - clean up local state
+        // to prevent the save effect from re-creating the room.
+        isRoomDeleted.current = true;
+        isFromFirebase.current = true;
+        setRoomId('');
+        setGameState({
+          roomName: '',
+          phase: GamePhase.SETUP,
+          currentRound: 1,
+          teams: [],
+          roundHistory: [],
+          pendingSubmissions: {},
+        });
+        setViewingResult(null);
+        setIsRoundComplete(false);
+        setUserRole(null);
+        setCurrentUser(null);
+        localStorage.removeItem(GAME_STORAGE_KEY);
+        localStorage.removeItem(ROOM_ID_KEY);
+        window.history.replaceState({}, '', window.location.pathname);
       }
     });
 
@@ -158,15 +182,30 @@ const App: React.FC = () => {
   // 3. Save state on change
   useEffect(() => {
     if (gameState.phase === GamePhase.SETUP) return;
-    if (isFromFirebase.current) return; // Skip if update came from Firebase
+
+    // Skip if update came from Firebase and clear the flag for next local update.
+    // This is safer than setTimeout because it guarantees the flag is only cleared
+    // after React has processed the state update and the effect has run.
+    if (isFromFirebase.current) {
+      isFromFirebase.current = false;
+      return;
+    }
+
+    // Skip if room was deleted externally
+    if (isRoomDeleted.current) return;
 
     // Save to localStorage
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
 
     // Save to Firebase if configured
-    // 단, pendingSubmission 업데이트 중에는 전체 상태 저장을 건너뜀 (원자적 업데이트 사용)
-    if (useFirebase && roomId && !isPendingSubmissionUpdate.current) {
-      saveGameState(roomId, gameState).catch(console.error);
+    // pendingSubmission 원자적 업데이트 중에는 전체 상태 저장을 건너뜀
+    if (useFirebase && roomId) {
+      if (isPendingSubmissionUpdate.current) {
+        // Clear flag here (not via setTimeout) to prevent race conditions
+        isPendingSubmissionUpdate.current = false;
+      } else {
+        saveGameState(roomId, gameState).catch(console.error);
+      }
     }
   }, [gameState, roomId, useFirebase]);
 
@@ -274,14 +313,27 @@ const App: React.FC = () => {
   };
 
   // 특정 게임룸 삭제 (관리자용)
-  const handleDeleteRoom = (targetRoomId?: string) => {
+  const handleDeleteRoom = async (targetRoomId?: string) => {
     const roomToDelete = targetRoomId || roomId;
-    if (useFirebase && roomToDelete) {
-      deleteGameRoom(roomToDelete).catch(console.error);
-    }
-    // 현재 선택된 방을 삭제한 경우에만 초기화
+
+    // 현재 선택된 방을 삭제하는 경우, 먼저 구독 해제 및 로컬 상태 정리
+    // (삭제 전에 정리해야 subscription이 null을 받아서 다시 저장하는 것을 방지)
     if (!targetRoomId || targetRoomId === roomId) {
+      isRoomDeleted.current = true;
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
       handleRestart();
+    }
+
+    // Firebase에서 삭제
+    if (useFirebase && roomToDelete) {
+      try {
+        await deleteGameRoom(roomToDelete);
+      } catch (error) {
+        console.error('Failed to delete room:', error);
+      }
     }
   };
 
@@ -345,6 +397,8 @@ const App: React.FC = () => {
     // Firebase에 원자적으로 업데이트 (다른 팀 제출에 영향 없음)
     if (useFirebase && roomId) {
       // 플래그 설정: 전체 상태 저장 건너뛰기
+      // Flag is cleared in the save effect, not via setTimeout,
+      // to prevent full saves from overwriting other teams' atomic updates.
       isPendingSubmissionUpdate.current = true;
       updatePendingSubmission(roomId, teamId, card1, card2).catch(console.error);
     }
@@ -357,11 +411,6 @@ const App: React.FC = () => {
         [teamId]: { card1, card2 }
       }
     }));
-
-    // 플래그 리셋 (다음 이벤트 루프에서)
-    setTimeout(() => {
-      isPendingSubmissionUpdate.current = false;
-    }, 100);
   };
 
   // Timer control functions
@@ -471,6 +520,9 @@ const App: React.FC = () => {
 
     // Clear URL params
     window.history.replaceState({}, '', window.location.pathname);
+
+    // Prevent save effect from firing during reset
+    isFromFirebase.current = true;
 
     setRoomId('');
     setGameState({
