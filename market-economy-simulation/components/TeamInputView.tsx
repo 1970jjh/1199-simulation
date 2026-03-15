@@ -132,8 +132,8 @@ export const TeamInputView: React.FC<TeamInputViewProps> = ({
         {/* Main Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center w-full">
             
-            {/* Team Members List for Users */}
-            {isUserMode && members.length > 0 && (
+            {/* Team Members List */}
+            {members.length > 0 && (
                 <div className="w-full max-w-3xl mb-4 bg-white/50 dark:bg-slate-800/50 rounded-xl p-3 flex flex-wrap gap-2 items-center justify-center">
                     <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Team Members:</span>
                     {members.map((m, i) => (

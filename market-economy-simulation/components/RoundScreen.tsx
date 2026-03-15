@@ -329,6 +329,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
           onClose={() => setActiveTeamId(null)}
           onSubmit={handleTeamSubmit}
           isUserMode={false}
+          members={activeTeam.members}
           isAlreadySubmitted={!!submissions[activeTeam.id]}
           submittedCards={submissions[activeTeam.id] || null}
         />
@@ -439,7 +440,16 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                             {sortedTeams.map((t, idx) => (
                                 <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                                 <td className="px-3 py-3 font-mono font-bold text-gray-500">#{idx + 1}</td>
-                                <td className="px-3 py-3 font-medium text-gray-800 dark:text-gray-200">{t.name}</td>
+                                <td className="px-3 py-3">
+                                    <div className="font-medium text-gray-800 dark:text-gray-200">{t.name}</div>
+                                    {t.members && t.members.length > 0 && (
+                                      <div className="flex flex-wrap gap-0.5 mt-1">
+                                        {t.members.map((m, i) => (
+                                          <span key={i} className="text-[10px] text-gray-500 dark:text-gray-400">{m}{i < t.members.length - 1 ? ',' : ''}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                </td>
                                 <td className={`px-3 py-3 text-right font-mono font-bold ${t.totalScore >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}>
                                     {t.totalScore}
                                 </td>
@@ -541,7 +551,7 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                     `}
                     >
                     <div className="p-4 md:p-5 flex flex-col h-full">
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex justify-between items-center mb-2">
                         <span className="font-bold text-base md:text-lg text-gray-800 dark:text-white flex items-center gap-2 truncate">
                             <span className="w-1.5 h-6 bg-blue-500 rounded-full inline-block shrink-0"></span>
                             {team.name}
@@ -550,6 +560,18 @@ export const RoundScreen: React.FC<RoundScreenProps> = ({
                             {team.totalScore}억
                         </span>
                         </div>
+
+                        {/* Connected Members */}
+                        {team.members && team.members.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            <Users size={12} className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0" />
+                            {team.members.map((member, idx) => (
+                              <span key={idx} className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] md:text-xs font-medium">
+                                {member}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         <div className="flex-1 flex flex-col justify-center items-center py-2 md:py-4 space-y-2">
                         {isSubmitted ? (
