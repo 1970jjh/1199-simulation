@@ -54,6 +54,11 @@ const App: React.FC = () => {
   const isPendingSubmissionUpdate = useRef(false);
   // Ref to track if room was deleted externally (prevents re-saving)
   const isRoomDeleted = useRef(false);
+  // Ref to track if Firebase has delivered initial data (prevents stale localStorage from overwriting Firebase)
+  // This flag is set to true ONLY after the first onValue callback from Firebase.
+  // Until then, save effect is blocked to prevent page-reload race condition:
+  //   localStorage(stale) → setGameState → save effect → overwrites Firebase with old data
+  const isFirebaseReady = useRef(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomsRef = useRef<(() => void) | null>(null);
 
@@ -140,9 +145,11 @@ const App: React.FC = () => {
 
     // Subscribe to Firebase changes
     isRoomDeleted.current = false;
+    isFirebaseReady.current = false; // Reset: wait for first Firebase data before allowing saves
     unsubscribeRef.current = subscribeToGameState(roomId, (newState) => {
       if (newState) {
         isFromFirebase.current = true;
+        isFirebaseReady.current = true; // Firebase has delivered data; saves are now safe
         setGameState(newState);
         setIsRoundComplete(checkRoundComplete(newState));
         // Also update localStorage for offline support
@@ -196,12 +203,27 @@ const App: React.FC = () => {
     // Skip if room was deleted externally
     if (isRoomDeleted.current) return;
 
-    // Save to localStorage
+    // Save to localStorage (always safe - local only)
     localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
 
     // Save to Firebase if configured
-    // pendingSubmission 원자적 업데이트 중에는 전체 상태 저장을 건너뜀
+    // CRITICAL: Block saves until Firebase has delivered initial data.
+    // Without this guard, page reload causes: localStorage(stale) → setGameState → save effect
+    // → overwrites Firebase with old round data → all 30+ clients roll back.
     if (useFirebase && roomId) {
+      if (!isFirebaseReady.current) {
+        // Firebase hasn't delivered initial data yet. Skip save to prevent stale overwrite.
+        return;
+      }
+      // Only ADMIN can save full game state to Firebase.
+      // Participants (USER role) must NOT write full state — they can only use
+      // updatePendingSubmission() for their team's card submissions.
+      // This prevents 30+ mobile clients from accidentally overwriting game state
+      // with stale data on reconnect/page reload.
+      if (userRole !== 'ADMIN') {
+        return;
+      }
+      // pendingSubmission 원자적 업데이트 중에는 전체 상태 저장을 건너뜀
       if (isPendingSubmissionUpdate.current) {
         // Clear flag here (not via setTimeout) to prevent race conditions
         isPendingSubmissionUpdate.current = false;
@@ -209,7 +231,7 @@ const App: React.FC = () => {
         saveGameState(roomId, gameState).catch(console.error);
       }
     }
-  }, [gameState, roomId, useFirebase]);
+  }, [gameState, roomId, useFirebase, userRole]);
 
   // 4. Listen for localStorage changes from other tabs (fallback)
   useEffect(() => {

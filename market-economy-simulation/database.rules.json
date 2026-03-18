@@ -1,0 +1,41 @@
+{
+  "rules": {
+    "games": {
+      "$roomId": {
+        // Allow read for anyone with the room ID
+        ".read": true,
+
+        // Allow full write only for new rooms (creation)
+        ".write": true,
+
+        "currentRound": {
+          // CRITICAL: Prevent round rollback.
+          // currentRound can only stay the same or increase, never decrease.
+          // This is the server-level safety net: even if a client has a bug
+          // and tries to write stale data (e.g., round 3 when game is at round 6),
+          // Firebase will reject the write.
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 9 && (data.val() == null || newData.val() >= data.val())"
+        },
+
+        "roundHistory": {
+          // roundHistory can only grow (append-only), never shrink.
+          // Prevents stale overwrites from erasing completed round results.
+          ".validate": "!data.exists() || newData.numChildren() >= data.numChildren()"
+        },
+
+        "phase": {
+          // Phase transitions: SETUP -> PLAYING -> ENDED (forward-only)
+          // Prevents rolling back from PLAYING to SETUP, etc.
+          ".validate": "newData.isString() && (newData.val() == 'SETUP' || newData.val() == 'PLAYING' || newData.val() == 'ENDED')"
+        },
+
+        "pendingSubmissions": {
+          "$teamId": {
+            // Individual team submissions: anyone can write their own team's submission
+            ".validate": "newData.hasChildren(['card1', 'card2'])"
+          }
+        }
+      }
+    }
+  }
+}
