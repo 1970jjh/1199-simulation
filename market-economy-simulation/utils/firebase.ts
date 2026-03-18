@@ -98,8 +98,9 @@ export const saveGameState = async (roomId: string, state: GameState, isNew: boo
     await set(gameRef, dataToSave);
   } catch (error: any) {
     // Firebase Security Rules may reject writes that would roll back the round.
-    // This is expected behavior — log and suppress to prevent error propagation.
-    if (error?.code === 'PERMISSION_DENIED' || error?.message?.includes('PERMISSION_DENIED')) {
+    // This is expected behavior for EXISTING rooms — suppress to prevent error propagation.
+    // For NEW rooms (isNew=true), always propagate the error so the UI shows the failure.
+    if (!isNew && (error?.code === 'PERMISSION_DENIED' || error?.message?.includes('PERMISSION_DENIED'))) {
       console.warn(
         `[Firebase] Write rejected by security rules (likely stale data). ` +
         `Attempted currentRound=${state.currentRound}, roundHistory.length=${state.roundHistory.length}. ` +
