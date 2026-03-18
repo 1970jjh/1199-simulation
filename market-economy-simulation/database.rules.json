@@ -1,10 +1,10 @@
 {
   "rules": {
     "games": {
-      "$roomId": {
-        // Allow read for anyone with the room ID
-        ".read": true,
+      // Allow reading the full room list (needed for subscribeToGameRooms)
+      ".read": true,
 
+      "$roomId": {
         // Allow full write only for new rooms (creation)
         ".write": true,
 
