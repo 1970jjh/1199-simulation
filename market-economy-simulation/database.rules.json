@@ -18,9 +18,11 @@
         },
 
         "roundHistory": {
-          // roundHistory can only grow (append-only), never shrink.
-          // Prevents stale overwrites from erasing completed round results.
-          ".validate": "!data.exists() || newData.numChildren() >= data.numChildren()"
+          "$roundKey": {
+            // Each round result: allow creation, allow overwrite, but prevent deletion.
+            // This stops stale writes from erasing completed round results.
+            ".validate": "!data.exists() || newData.val() != null"
+          }
         },
 
         "phase": {
