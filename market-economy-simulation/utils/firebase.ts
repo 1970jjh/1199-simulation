@@ -94,7 +94,21 @@ export const saveGameState = async (roomId: string, state: GameState, isNew: boo
     dataToSave.createdAt = now;
   }
 
-  await set(gameRef, dataToSave);
+  try {
+    await set(gameRef, dataToSave);
+  } catch (error: any) {
+    // Firebase Security Rules may reject writes that would roll back the round.
+    // This is expected behavior — log and suppress to prevent error propagation.
+    if (error?.code === 'PERMISSION_DENIED' || error?.message?.includes('PERMISSION_DENIED')) {
+      console.warn(
+        `[Firebase] Write rejected by security rules (likely stale data). ` +
+        `Attempted currentRound=${state.currentRound}, roundHistory.length=${state.roundHistory.length}. ` +
+        `This is a safety mechanism to prevent round rollback.`
+      );
+      return;
+    }
+    throw error;
+  }
 };
 
 // 팀별 제출 원자적 업데이트 (동시 제출 충돌 방지)
